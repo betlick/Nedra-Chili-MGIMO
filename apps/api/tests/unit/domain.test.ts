@@ -5,8 +5,16 @@ import { buildApp } from '../../src/app.js';
 import { DomainError, instant, bodyObject, textValue, uuid } from '../../src/domain.js';
 import { validateFile } from '../../src/material-routes.js';
 import { requestPdf } from '../../src/request-pdf.js';
+import { validEndpoint, validKey } from '../../src/push.js';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import * as schema from '../../src/schema.js';
+test('Web Push only accepts known HTTPS providers and browser keys', () => {
+    assert.equal(validEndpoint('https://fcm.googleapis.com/fcm/send/test'), true);
+    for (const endpoint of ['http://fcm.googleapis.com/fcm/send/test', 'https://127.0.0.1/x', 'https://fcm.googleapis.com.evil.test/x', 'https://user@fcm.googleapis.com/x'])
+        assert.equal(validEndpoint(endpoint), false);
+    assert.equal(validKey(Buffer.alloc(65, 1).toString('base64url'), 65, 65), true);
+    assert.equal(validKey('!!!', 65, 65), false);
+});
 test('all new routes reject missing or forged sessions and enforce CSRF before database access', async () => {
     process.env.JWT_SECRET = randomBytes(48).toString('hex');
     process.env.DATABASE_URL = 'postgresql://unused:unused@127.0.0.1:1/unused';
@@ -18,6 +26,7 @@ test('all new routes reject missing or forged sessions and enforce CSRF before d
         object?
     ][] = [
         ['GET', '/api/notifications'], ['PATCH', '/api/notifications/read-all'], ['PATCH', `/api/notifications/${id}/read`],
+        ['GET', '/api/push/config'], ['POST', '/api/push/subscriptions', {}], ['DELETE', '/api/push/subscriptions', {}],
         ['GET', '/api/user/prefs'], ['PATCH', '/api/user/prefs', { schedule: false }], ['GET', '/api/gradebook/groups'], ['PUT', `/api/gradebook/${id}`, { version: 0, scores: [] }], ['GET', '/api/grades'],
         ['GET', '/api/inquiries'], ['GET', '/api/inquiries/teachers'], ['POST', '/api/inquiries', {}], ['PATCH', `/api/inquiries/${id}`, { status: 'closed' }], ['POST', `/api/inquiries/${id}/replies`, { text: 'Тест' }],
         ['GET', '/api/materials'], ['GET', '/api/materials/assignments'], ['POST', '/api/materials', {}], ['DELETE', `/api/materials/${id}`], ['GET', `/api/materials/${id}/file`],

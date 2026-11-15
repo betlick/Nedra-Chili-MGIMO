@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { actor, bodyObject, fail, textValue, uuid, type Authorize, type Db } from './domain.js';
 import { announcements, groups, notifications, userPrefs, users } from './schema.js';
+import { publishPush, type PushNotice, type PushService } from './push.js';
 
 /** Обложка: стоковая (`stock:<имя>`), загруженное фото (jpeg/webp, до ~500 КБ) или без обложки. */
 const STOCK_COVERS = ['campus', 'graduation', 'library', 'lecture', 'schedule', 'languages'];
@@ -17,7 +18,7 @@ function coverValue(value: unknown): string | null {
   return value;
 }
 
-export function announcementRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
+export function announcementRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
   app.get('/api/announcements', async (req, reply) => {
     const id = await auth(req, reply); if (!id) return;
     const u = await actor(db, id);
@@ -38,6 +39,7 @@ export function announcementRoutes(app: FastifyInstance, db: Db, auth: Authorize
     const groupId = b.groupId === null || b.groupId === undefined ? null : uuid(b.groupId);
     const title = textValue(b.title, 200, 'Заголовок'), body = textValue(b.body, 2000, 'Текст');
     const cover = coverValue(b.cover);
+    const pushed: PushNotice[] = [];
     const created = await db.transaction(async tx => {
       if (groupId) {
         const [group] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, groupId));
@@ -48,9 +50,10 @@ export function announcementRoutes(app: FastifyInstance, db: Db, auth: Authorize
         .leftJoin(userPrefs, eq(userPrefs.userId, users.id))
         .where(and(eq(users.role, 'student'), groupId ? eq(users.groupId, groupId) : undefined));
       const notices = recipients.filter(r => r.enabled === true).map(r => ({ studentId: r.id, kind: 'news', title, body }));
-      if (notices.length) await tx.insert(notifications).values(notices);
+      if (notices.length) pushed.push(...await tx.insert(notifications).values(notices).returning());
       return row;
     });
+    publishPush(push, pushed, app.log);
     return reply.code(201).send({ data: created });
   });
 

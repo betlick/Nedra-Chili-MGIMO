@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, eq, gt, lt, ne, or, ilike, sql } from 'drizzle-orm';
 import { actor, bodyObject, fail, instant, textValue, uuid, type Authorize, type Db, type DbSession } from './domain.js';
 import { groups, lessons, notifications, subjects, userPrefs, users } from './schema.js';
+import { publishPush, type PushNotice, type PushService } from './push.js';
 const rowQuery = (db: DbSession) => db.select({ id: lessons.id, groupId: lessons.groupId, groupName: groups.name, subject: subjects.name, kind: lessons.kind, teacherId: lessons.teacherId, teacherName: lessons.teacherName, room: lessons.room, startsAt: lessons.startsAt, endsAt: lessons.endsAt, changeNote: lessons.changeNote, cancelled: lessons.cancelled }).from(lessons).innerJoin(subjects, eq(subjects.id, lessons.subjectId)).innerJoin(groups, eq(groups.id, lessons.groupId));
 function period(q: Record<string, unknown>) {
     const from = instant(q.from), to = instant(q.to);
@@ -9,7 +10,7 @@ function period(q: Record<string, unknown>) {
         fail(400, 'Период: от 1 миллисекунды до 62 дней');
     return { from, to };
 }
-export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, auth: Authorize) {
+export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, auth: Authorize, push: PushService) {
     app.get('/api/staff/teachers', async (req, reply) => { if (!await staff(req, reply))
         return; return { data: await db.select({ id: users.id, name: users.fullName }).from(users).where(eq(users.role, 'teacher')).orderBy(asc(users.fullName)) }; });
     app.get<{
@@ -56,11 +57,11 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             fail(403, 'Используйте кабинет сотрудника');
         return { data: await rowQuery(db).where(and(u.role === 'student' ? eq(lessons.groupId, u.groupId!) : eq(lessons.teacherId, id), gt(lessons.endsAt, from), lt(lessons.startsAt, to))).orderBy(asc(lessons.startsAt)) };
     });
-    async function notify(tx: DbSession, groupId: string, title: string, body: string) {
+    async function notify(tx: DbSession, groupId: string, title: string, body: string, pushed: PushNotice[]) {
         const recipients = await tx.select({ id: users.id, schedule: userPrefs.schedule }).from(users).leftJoin(userPrefs, eq(userPrefs.userId, users.id)).where(and(eq(users.role, 'student'), eq(users.groupId, groupId)));
         const values = recipients.filter(r => r.schedule !== false).map(r => ({ studentId: r.id, kind: 'change', title, body }));
         if (values.length)
-            await tx.insert(notifications).values(values);
+            pushed.push(...await tx.insert(notifications).values(values).returning());
     }
     async function values(tx: DbSession, b: Record<string, unknown>, old?: typeof lessons.$inferSelect) {
         const subject = b.subject === undefined && old ? (await tx.select().from(subjects).where(eq(subjects.id, old.subjectId)))[0]!.name : textValue(b.subject, 120, 'Дисциплина');
@@ -106,6 +107,7 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
         if (!await staff(req, reply))
             return;
         const groupId = uuid(req.params.id), b = bodyObject(req.body);
+        const pushed: PushNotice[] = [];
         const row = await db.transaction(async (tx) => {
             await tx.execute(sql `select pg_advisory_xact_lock(746001)`);
             const [g] = await tx.select().from(groups).where(eq(groups.id, groupId));
@@ -114,9 +116,10 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             const v = await values(tx, b);
             await checkOverlap(tx, groupId, v);
             const [r] = await tx.insert(lessons).values({ ...v, groupId }).returning();
-            await notify(tx, groupId, 'Расписание изменено', 'Добавлено занятие. Откройте расписание группы.');
+            await notify(tx, groupId, 'Расписание изменено', 'Добавлено занятие. Откройте расписание группы.', pushed);
             return (await rowQuery(tx).where(eq(lessons.id, r.id)))[0];
         });
+        publishPush(push, pushed, app.log);
         return reply.code(201).send({ data: row });
     });
     app.patch<{
@@ -130,6 +133,7 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
         const allowed = ['subject', 'kind', 'teacherId', 'teacherName', 'room', 'startsAt', 'endsAt', 'changeNote'];
         if (!Object.keys(b).length || Object.keys(b).some(k => !allowed.includes(k)))
             fail(400, 'Неверные поля занятия');
+        const pushed: PushNotice[] = [];
         const row = await db.transaction(async (tx) => {
             await tx.execute(sql `select pg_advisory_xact_lock(746001)`);
             const [r] = await tx.select().from(lessons).where(eq(lessons.id, id)).for('update');
@@ -140,9 +144,10 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             const v = await values(tx, b, r);
             await checkOverlap(tx, r.groupId, v, id);
             await tx.update(lessons).set(v).where(eq(lessons.id, id));
-            await notify(tx, r.groupId, 'Расписание изменено', 'Обновлено занятие. Откройте расписание группы.');
+            await notify(tx, r.groupId, 'Расписание изменено', 'Обновлено занятие. Откройте расписание группы.', pushed);
             return (await rowQuery(tx).where(eq(lessons.id, id)))[0];
         });
+        publishPush(push, pushed, app.log);
         return { data: row };
     });
     app.delete<{
@@ -152,6 +157,7 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
     }>('/api/staff/lessons/:id', async (req, reply) => {
         if (!await staff(req, reply))
             return;
+        const pushed: PushNotice[] = [];
         await db.transaction(async (tx) => {
             await tx.execute(sql `select pg_advisory_xact_lock(746001)`);
             const [r] = await tx.select().from(lessons).where(eq(lessons.id, uuid(req.params.id))).for('update');
@@ -160,8 +166,9 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             if (r.cancelled)
                 return;
             await tx.update(lessons).set({ cancelled: true }).where(eq(lessons.id, r.id));
-            await notify(tx, r.groupId, 'Занятие отменено', 'Изменилось расписание. Отменённое занятие сохранено в истории.');
+            await notify(tx, r.groupId, 'Занятие отменено', 'Изменилось расписание. Отменённое занятие сохранено в истории.', pushed);
         });
+        publishPush(push, pushed, app.log);
         return reply.code(204).send();
     });
 }

@@ -78,6 +78,13 @@
       "when": 1794642165567,
       "tag": "0010_sticky_catseye",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794743411240,
+      "tag": "0011_ancient_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

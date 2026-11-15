@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { actor, assignmentAccess, assignmentFilter, assignmentsQuery, bodyObject, fail, studentsOf, textValue, uuid, type Authorize, type Db } from './domain.js';
 import { gradeEntries, groups, inquiries, inquiryReplies, notifications, teachingAssignments, users } from './schema.js';
-export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
+import { publishPush, type PushNotice, type PushService } from './push.js';
+export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
     app.get('/api/gradebook/groups', async (req, reply) => {
         const id = await auth(req, reply);
         if (!id)
@@ -32,6 +33,7 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
             fail(400, 'Баллы: целое 0–100 либо null'); return { studentId, score: s.score as number | null }; });
         if (new Set(scores.map(s => s.studentId)).size !== scores.length)
             fail(400, 'Студент указан несколько раз');
+        const pushed: PushNotice[] = [];
         const version = await db.transaction(async (tx) => {
             const [locked] = await tx.select().from(teachingAssignments).where(eq(teachingAssignments.id, assignmentId)).for('update');
             const a = await assignmentAccess(tx, assignmentId, u, true);
@@ -47,11 +49,12 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
                 if ((existing.find(e => e.studentId === s.studentId)?.score ?? null) === s.score)
                     continue;
                 await tx.insert(gradeEntries).values({ ...s, assignmentId: a.id }).onConflictDoUpdate({ target: [gradeEntries.assignmentId, gradeEntries.studentId], set: { score: s.score, updatedAt: new Date() } });
-                await tx.insert(notifications).values({ studentId: s.studentId, kind: 'grade', title: 'Оценка обновлена', body: `${a.subject}: ${s.score === null ? 'балл снят' : s.score + ' баллов'}.` });
+                pushed.push(...await tx.insert(notifications).values({ studentId: s.studentId, kind: 'grade', title: 'Оценка обновлена', body: `${a.subject}: ${s.score === null ? 'балл снят' : s.score + ' баллов'}.` }).returning());
             }
             await tx.update(teachingAssignments).set({ version: a.version + 1 }).where(eq(teachingAssignments.id, a.id));
             return a.version + 1;
         });
+        publishPush(push, pushed, app.log);
         return { data: { version } };
     });
     app.get('/api/grades', async (req, reply) => {
@@ -93,12 +96,14 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
         if (u.role !== 'student')
             fail(403, 'Обращение создаёт студент');
         const b = bodyObject(req.body), assignmentId = uuid(b.assignmentId), subject = textValue(b.subject, 200, 'Тема'), text = textValue(b.text, 5000, 'Текст');
+        const pushed: PushNotice[] = [];
         const row = await db.transaction(async (tx) => {
             const a = await assignmentAccess(tx, assignmentId, u);
             const [r] = await tx.insert(inquiries).values({ studentId: id, teacherId: a.teacherId, assignmentId, subject, text }).returning();
-            await tx.insert(notifications).values({ studentId: a.teacherId, kind: 'inquiry', title: 'Новое обращение', body: subject });
+            pushed.push(...await tx.insert(notifications).values({ studentId: a.teacherId, kind: 'inquiry', title: 'Новое обращение', body: subject }).returning());
             return r;
         });
+        publishPush(push, pushed, app.log);
         return reply.code(201).send({ data: row });
     });
     app.patch<{
@@ -131,6 +136,7 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
         if (u.role !== 'teacher')
             fail(403, 'Ответ отправляет преподаватель');
         const text = textValue(bodyObject(req.body).text, 5000, 'Ответ');
+        const pushed: PushNotice[] = [];
         const row = await db.transaction(async (tx) => {
             const [r] = await tx.select().from(inquiries).where(and(eq(inquiries.id, uuid(req.params.id)), eq(inquiries.teacherId, id))).for('update');
             if (!r)
@@ -139,9 +145,10 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
                 fail(409, 'Сначала откройте обращение');
             const [answer] = await tx.insert(inquiryReplies).values({ inquiryId: r.id, authorId: id, text }).returning();
             await tx.update(inquiries).set({ status: 'progress', updatedAt: new Date() }).where(eq(inquiries.id, r.id));
-            await tx.insert(notifications).values({ studentId: r.studentId, kind: 'inquiry', title: 'Ответ преподавателя', body: r.subject });
+            pushed.push(...await tx.insert(notifications).values({ studentId: r.studentId, kind: 'inquiry', title: 'Ответ преподавателя', body: r.subject }).returning());
             return answer;
         });
+        publishPush(push, pushed, app.log);
         return reply.code(201).send({ data: row });
     });
 }

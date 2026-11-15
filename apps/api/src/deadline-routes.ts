@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, eq, gt } from 'drizzle-orm';
 import { actor, assignmentAccess, bodyObject, fail, instant, textValue, uuid, type Authorize, type Db } from './domain.js';
 import { academicDeadlines, groups, notifications, subjects, teachingAssignments, userPrefs, users } from './schema.js';
+import { publishPush, type PushNotice, type PushService } from './push.js';
 
-export function deadlineRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
+export function deadlineRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
   const rows = () => db.select({
     id: academicDeadlines.id, assignmentId: academicDeadlines.assignmentId,
     title: academicDeadlines.title, dueAt: academicDeadlines.dueAt,
@@ -29,6 +30,7 @@ export function deadlineRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
     if (Object.keys(b).some(k => !['assignmentId', 'title', 'dueAt'].includes(k))) fail(400, 'Неверные поля дедлайна');
     const assignmentId = uuid(b.assignmentId), title = textValue(b.title, 200, 'Название'), dueAt = instant(b.dueAt);
     if (dueAt <= new Date()) fail(400, 'Укажите будущий срок');
+    const pushed: PushNotice[] = [];
     const row = await db.transaction(async tx => {
       const assignment = await assignmentAccess(tx, assignmentId, u, true);
       const [created] = await tx.insert(academicDeadlines).values({ assignmentId, title, dueAt }).returning();
@@ -36,9 +38,10 @@ export function deadlineRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
         .leftJoin(userPrefs, eq(userPrefs.userId, users.id))
         .where(and(eq(users.role, 'student'), eq(users.groupId, assignment.groupId)));
       const notices = recipients.filter(r => r.enabled !== false).map(r => ({ studentId: r.id, kind: 'deadline', title: 'Новый учебный дедлайн', body: `${assignment.subject}: ${title}` }));
-      if (notices.length) await tx.insert(notifications).values(notices);
+      if (notices.length) pushed.push(...await tx.insert(notifications).values(notices).returning());
       return created;
     });
+    publishPush(push, pushed, app.log);
     return reply.code(201).send({ data: row });
   });
 

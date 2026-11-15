@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { User } from '../types'
 import { ApiError, authApi, type ApiProfile } from '../lib/api'
+import { detachPushOnLogout, syncPush } from '../lib/push'
 
 interface Auth {
   user: User | null
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    authApi.me().then(profile => { if (active) setUser(toUser(profile)) })
+    authApi.me().then(profile => { if (active) { setUser(toUser(profile)); void syncPush().catch(() => {}) } })
       .catch(() => { if (active) setUser(null) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.login(email.trim(), password)
       const profile = await authApi.me()
       setUser(toUser(profile))
+      void syncPush().catch(() => {})
       return null
     } catch (error) {
       return error instanceof ApiError ? error.message : 'Не удалось войти. Попробуйте ещё раз.'
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback<Auth['logout']>(async () => {
     try {
+      await detachPushOnLogout().catch(() => {})
       await authApi.logout()
       setUser(null)
       return null

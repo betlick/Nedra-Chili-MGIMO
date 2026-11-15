@@ -9,7 +9,7 @@ export class DomainError extends Error {
     constructor(public statusCode: number, public code: string, message: string) { super(message); }
 }
 export function fail(status: number, message: string): never {
-    throw new DomainError(status, ({ 400: 'BAD_REQUEST', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 413: 'TOO_LARGE' } as Record<number, string>)[status] ?? 'BAD_REQUEST', message);
+    throw new DomainError(status, ({ 400: 'BAD_REQUEST', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 409: 'CONFLICT', 413: 'TOO_LARGE', 503: 'SERVICE_UNAVAILABLE' } as Record<number, string>)[status] ?? 'BAD_REQUEST', message);
 }
 export function textValue(value: unknown, max: number, label = 'Поле'): string {
     if (typeof value !== 'string' || !value.trim() || value.trim().length > max)

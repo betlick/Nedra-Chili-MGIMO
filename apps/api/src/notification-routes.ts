@@ -1,8 +1,34 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq } from 'drizzle-orm';
-import { notifications, userPrefs } from './schema.js';
+import { notifications, pushSubscriptions, userPrefs } from './schema.js';
 import { bodyObject, fail, uuid, type Authorize, type Db } from './domain.js';
-export function notificationRoutes(app: FastifyInstance, db: Db, auth: Authorize) {
+import { validEndpoint, validKey, type PushService } from './push.js';
+export function notificationRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
+    app.get('/api/push/config', async (req, reply) => {
+        const id = await auth(req, reply);
+        if (id) return { data: { enabled: push.enabled, publicKey: push.publicKey } };
+    });
+    app.post('/api/push/subscriptions', async (req, reply) => {
+        const id = await auth(req, reply);
+        if (!id) return;
+        if (!push.enabled) fail(503, 'Push-уведомления не настроены');
+        const sub = bodyObject(req.body), keys = bodyObject(sub.keys);
+        if (Object.keys(sub).some(k => !['endpoint', 'keys'].includes(k)) ||
+            Object.keys(keys).some(k => !['p256dh', 'auth'].includes(k)) ||
+            !validEndpoint(sub.endpoint) || !validKey(keys.p256dh, 65, 65) || !validKey(keys.auth, 16, 32))
+            fail(400, 'Неверная подписка браузера');
+        await db.insert(pushSubscriptions).values({ endpoint: sub.endpoint, userId: id, p256dh: keys.p256dh, auth: keys.auth })
+            .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { userId: id, p256dh: keys.p256dh, auth: keys.auth } });
+        return reply.code(204).send();
+    });
+    app.delete('/api/push/subscriptions', async (req, reply) => {
+        const id = await auth(req, reply);
+        if (!id) return;
+        const { endpoint } = bodyObject(req.body);
+        if (!validEndpoint(endpoint)) fail(400, 'Неверная подписка браузера');
+        await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.userId, id), eq(pushSubscriptions.endpoint, endpoint)));
+        return reply.code(204).send();
+    });
     app.get('/api/notifications', async (req, reply) => {
         const id = await auth(req, reply);
         if (!id)

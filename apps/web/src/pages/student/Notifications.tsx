@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useData } from '../../context/data'
 import { useUser } from '../../context/auth'
 import type { NoticeIcon } from '../../types'
 import type { IconName } from '../../components/Icon'
 import { Icon } from '../../components/Icon'
 import { Badge, Button, Disclaimer, PageHeader, ThemeButton, Toggle } from '../../components/ui'
+import { dataApi } from '../../lib/api'
+import { disablePush, enablePush, pushIsActive, pushSupported } from '../../lib/push'
 
 const ICONS: Record<NoticeIcon, IconName> = { alert: 'alert', calendar: 'calendar', doc: 'doc', bell: 'bell', inbox: 'inbox' }
 
@@ -12,6 +15,28 @@ export function NotificationsPage() {
   const { notices, unreadCount, markRead, markAllRead, prefs, setPref } = useData()
   const user = useUser()
   const isStudent = user.role === 'student'
+  const [pushKey, setPushKey] = useState<string | null>(null)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushError, setPushError] = useState('')
+  useEffect(() => {
+    let active = true
+    dataApi.pushConfig().then(async config => {
+      const subscribed = await pushIsActive()
+      if (active) { setPushKey(config.publicKey); setPushEnabled(subscribed) }
+    }).catch(() => { if (active) setPushError('Не удалось проверить настройки push-уведомлений') })
+    return () => { active = false }
+  }, [])
+  async function togglePush() {
+    setPushBusy(true)
+    setPushError('')
+    try {
+      if (pushEnabled) { await disablePush(); setPushEnabled(false) }
+      else if (pushKey) { await enablePush(pushKey); setPushEnabled(true) }
+    } catch (error) {
+      setPushError(error instanceof Error ? error.message : 'Не удалось изменить подписку')
+    } finally { setPushBusy(false) }
+  }
   return (
     <>
       <PageHeader
@@ -59,6 +84,17 @@ export function NotificationsPage() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="card prefs">
+          <h2 className="card__title card__title--lg">Уведомления браузера</h2>
+          <p className="small muted">Получайте новые уведомления на этом устройстве, даже когда вкладка закрыта.</p>
+          {pushKey && pushSupported() ? (
+            <Button variant="primary" onClick={() => void togglePush()} disabled={pushBusy}>
+              {pushBusy ? 'Сохраняем…' : pushEnabled ? 'Отключить на этом устройстве' : 'Включить на этом устройстве'}
+            </Button>
+          ) : <p className="small muted">{!pushSupported() ? 'Требуется HTTPS и браузер с поддержкой Web Push.' : 'Доставка push пока не настроена на сервере.'}</p>}
+          {pushError && <p role="alert">{pushError}</p>}
         </section>
 
         {isStudent && (

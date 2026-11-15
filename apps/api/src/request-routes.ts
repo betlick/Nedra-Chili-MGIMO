@@ -7,9 +7,10 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { connectDatabase } from './db.js';
 import { requestPdf } from './request-pdf.js';
 import { notifications, requests, users, groups } from './schema.js';
+import { publishPush, type PushNotice, type PushService } from './push.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string };
-export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>) {
+export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService) {
   const publicRow = ({ documentBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => row;
   async function snapshot(tx: DbSession, row: typeof requests.$inferSelect): Promise<DocumentSnapshot> {
     const [u] = await tx.select({ fullName:users.fullName, faculty:users.faculty, groupId:users.groupId }).from(users).where(eq(users.id,row.studentId)).for('share');
@@ -36,11 +37,13 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
   }, async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
     if (!req.body.purpose.trim()) return reply.code(400).send(failure('BAD_REQUEST', 'Укажите цель заявки'));
+    const pushed: PushNotice[] = [];
     const result = await db.transaction(async tx => {
       const [row] = await tx.insert(requests).values({ studentId: id, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
-      await tx.insert(notifications).values({ studentId: id, title: 'Заявка принята', body: 'Заявка зарегистрирована в деканате.' });
+      pushed.push(...await tx.insert(notifications).values({ studentId: id, title: 'Заявка принята', body: 'Заявка зарегистрирована в деканате.' }).returning());
       return row;
     });
+    publishPush(push, pushed, app.log);
     return reply.code(201).send({ data: publicRow(result!) });
   });
   app.patch<{ Params: { id: string } }>('/api/requests/:id/cancel', {
@@ -69,6 +72,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     },
   }, async (req, reply) => {
     const staffId = await staff(req, reply); if (!staffId) return;
+    const pushed: PushNotice[] = [];
     const result = await db.transaction(async tx => {
       const [row] = await tx.select().from(requests).where(eq(requests.id, req.params.id)).for('update');
       if (!row) return { code: 404, data: null };
@@ -88,9 +92,10 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
         documentBase64 = (await requestPdf({ ...row, ...student!, ...(row.type==='study'?row.draftSnapshot:{}), readyAt: readyAt! })).toString('base64');
       }
       const [updated] = await tx.update(requests).set({ status: req.body.status, processedBy: staffId, updatedAt: new Date(), readyAt, documentBase64, ...(req.body.status==='rejected'?{rejectionReason:req.body.reason!.trim()}: {}) }).where(eq(requests.id, row.id)).returning();
-      await tx.insert(notifications).values({ studentId: row.studentId, title: req.body.status === 'ready' ? 'Заявка готова' : 'Статус заявки изменён', body: 'Откройте раздел заявок для просмотра.' });
+      pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, title: req.body.status === 'ready' ? 'Заявка готова' : 'Статус заявки изменён', body: 'Откройте раздел заявок для просмотра.' }).returning());
       return { code: 200, data: publicRow(updated!) };
     });
+    publishPush(push, pushed, app.log);
     if (!result.data) return reply.code(result.code).send(failure(result.code === 404 ? 'NOT_FOUND' : 'CONFLICT', result.code === 404 ? 'Заявка не найдена' : 'Этот переход статуса недоступен'));
     return { data: result.data };
   });

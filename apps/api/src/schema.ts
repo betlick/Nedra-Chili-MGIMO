@@ -88,6 +88,14 @@ export const notifications = pgTable('notifications', {
   createdAt: createdAt(),
 }, t => [index('notifications_student_idx').on(t.studentId)]);
 
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  endpoint: text('endpoint').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: createdAt(),
+}, t => [index('push_subscriptions_user_idx').on(t.userId)]);
+
 export interface DocumentSnapshot {
   fullName: string; faculty: string; program: string; year: number; groupName: string;
   purpose: string; templateVersion: string;

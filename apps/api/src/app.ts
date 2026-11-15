@@ -13,6 +13,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt } from 'drizzle-orm';
 import { connectDatabase } from './db.js';
 import { requestRoutes } from './request-routes.js';
+import { createPush } from './push.js';
 import { scheduleRoutes } from './schedule-routes.js';
 import { groups, sessions, users } from './schema.js';
 
@@ -40,6 +41,7 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   const app = Fastify({ logger: options.logger ?? true, bodyLimit: 16384 });
   const connection = connectDatabase();
   const db = connection.db;
+  const push = createPush(db, app.log);
   const dummyHash = hash(randomBytes(32), { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
   const error = (code: string, message: string) => ({ error: { code, message } });
   app.register(cookie);
@@ -74,13 +76,13 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
     if (role !== '*' && user.role !== role) { reply.code(403).send(error('FORBIDDEN', 'Нет доступа к разделу')); return null; }
     return user.id;
   };
-  academicRoutes(app, db, authorize('*'));
-  announcementRoutes(app, db, authorize('*'));
-  deadlineRoutes(app, db, authorize('*'));
+  academicRoutes(app, db, authorize('*'), push);
+  announcementRoutes(app, db, authorize('*'), push);
+  deadlineRoutes(app, db, authorize('*'), push);
   materialRoutes(app, db, authorize('*'));
-  notificationRoutes(app, db, authorize('*'));
-  requestRoutes(app, db, authorize('student'), authorize('staff'));
-  scheduleRoutes(app, db, authorize('staff'), authorize('*'));
+  notificationRoutes(app, db, authorize('*'), push);
+  requestRoutes(app, db, authorize('student'), authorize('staff'), push);
+  scheduleRoutes(app, db, authorize('staff'), authorize('*'), push);
   app.get('/health', async () => ({ status: 'ok' }));
   app.post<{ Body: { email: string; password: string } }>('/api/auth/login', {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
