@@ -27,6 +27,7 @@ const TeacherDeadlinesPage = lazy(() => import('./pages/teacher/Deadlines').then
 const StaffTasksPage = lazy(() => import('./pages/staff/Tasks').then((m) => ({ default: m.StaffTasksPage })))
 const StaffAnnouncementsPage = lazy(() => import('./pages/staff/Announcements').then((m) => ({ default: m.StaffAnnouncementsPage })))
 const StaffSchedulePage = lazy(() => import('./pages/staff/Schedule').then((m) => ({ default: m.StaffSchedulePage })))
+const MapPage = lazy(() => import('./pages/map/MapPage').then((m) => ({ default: m.MapPage })))
 
 /* Страницы грузятся отдельными кусками. Когда браузер свободен, догружаем остальные,
    чтобы переходы между разделами оставались мгновенными. */
@@ -37,6 +38,7 @@ const PAGE_LOADERS = [
   () => import('./pages/teacher/Materials'), () => import('./pages/teacher/Deadlines'),
   () => import('./pages/staff/Tasks'), () => import('./pages/staff/Announcements'), () => import('./pages/staff/Schedule'),
   () => import('./pages/Profile'),
+  () => import('./pages/map/MapPage'),
 ]
 function usePrefetchPages(role: Role | undefined) {
   useEffect(() => {
@@ -44,7 +46,7 @@ function usePrefetchPages(role: Role | undefined) {
     const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback
     const run = () => {
       const pick = role === 'student' ? PAGE_LOADERS.slice(0, 6) : role === 'teacher' ? PAGE_LOADERS.slice(6, 11) : PAGE_LOADERS.slice(11, 14)
-      for (const load of [...pick, PAGE_LOADERS[14]]) void load().catch(() => undefined)
+      for (const load of [...pick, PAGE_LOADERS[14], PAGE_LOADERS[15]]) void load().catch(() => undefined)
     }
     const t = idle ? idle(run) : window.setTimeout(run, 1500)
     return () => { if (!idle) window.clearTimeout(t) }
@@ -111,6 +113,7 @@ function AppRoutes() {
                   <Route path="materials" element={<Navigate to="/student/grades" replace />} />
                   <Route path="inquiries" element={<StudentInquiriesPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="map/*" element={<MapPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                 </Route>
                 <Route
@@ -128,6 +131,7 @@ function AppRoutes() {
                   <Route path="deadlines" element={<TeacherDeadlinesPage />} />
                   <Route path="inquiries" element={<InquiriesPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="map/*" element={<MapPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                 </Route>
                 <Route
@@ -143,6 +147,7 @@ function AppRoutes() {
                   <Route index element={<StaffTasksPage />} />
                   <Route path="schedule" element={<StaffSchedulePage />} />
                   <Route path="announcements" element={<StaffAnnouncementsPage />} />
+                  <Route path="map/*" element={<MapPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                 </Route>
                 <Route path="*" element={<Home />} />

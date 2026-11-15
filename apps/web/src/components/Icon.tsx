@@ -2,6 +2,7 @@ import type { SVGProps } from 'react'
 
 // Линейные иконки 24×24 в стиле макетов (stroke 1.8).
 const PATHS = {
+  map: <><path d="M9 4.5 3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z" /><path d="M9 4.5v13M15 6.5v13" /></>,
   home: <><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9v11h5v-6h4v6h5V9" /></>,
   calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
   chart: <><path d="M4 20h16" /><path d="M7 16V9M12 16V5M17 16v-4" /></>,

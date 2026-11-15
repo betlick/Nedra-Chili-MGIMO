@@ -29,6 +29,7 @@ function useNav(): NavItem[] {
       { to: '/staff', label: 'Задачи', icon: 'inbox', badge: staff?.newCount, end: true },
       { to: '/staff/schedule', label: 'Расписание групп', icon: 'calendar' },
       { to: '/staff/announcements', label: 'Объявления', icon: 'bell' },
+      { to: '/staff/map', label: 'Карта', icon: 'map' },
     ]
   }
   if (user.role === 'student') {
@@ -38,6 +39,7 @@ function useNav(): NavItem[] {
       { to: '/student/grades', label: 'Предметы', icon: 'chart', badge: unreadMaterials },
       { to: '/student/requests', label: 'Заявки', icon: 'doc', badge: requests.filter((r) => ['submitted','in_progress'].includes(r.status)).length },
       { to: '/student/inquiries', label: 'Обращения', icon: 'inbox' },
+      { to: '/student/map', label: 'Карта', icon: 'map' },
       { to: '/student/notifications', label: 'Уведомления', icon: 'bell', badge: unreadCount },
     ]
   }
@@ -48,6 +50,7 @@ function useNav(): NavItem[] {
     { to: '/teacher/materials', label: 'Материалы', icon: 'book' },
     { to: '/teacher/deadlines', label: 'Дедлайны', icon: 'calendar' },
     { to: '/teacher/inquiries', label: 'Обращения', icon: 'inbox', badge: newInquiries },
+    { to: '/teacher/map', label: 'Карта', icon: 'map' },
     { to: '/teacher/notifications', label: 'Уведомления', icon: 'bell', badge: unreadCount },
   ]
 }

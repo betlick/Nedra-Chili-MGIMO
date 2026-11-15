@@ -1,0 +1,1034 @@
+/* ═════════ Карта университета ═════════
+   Все классы с префиксом cm-, чтобы не пересекаться с остальным интерфейсом.
+   Цвета берём из токенов темы; свои только для местности и категорий помещений. */
+
+.cm-root {
+  --cm-ground: #e8e9e2;
+  --cm-road: #fafaf6;
+  --cm-water: #c5d0e0;
+  --cm-water-hi: #dce3ee;
+  --cm-park: #dce6d3;
+  --cm-tree: #b9cfae;
+  --cm-lecture: #4f5fb3;
+  --cm-seminar: #1f8f8a;
+  --cm-practice: #8e5ac0;
+  --cm-food: #b9630f;
+  --cm-cowork: #7f8414;
+  --cm-sport: #2f8650;
+  --cm-service: #5f6879;
+  --cm-util: #9aa0ae;
+}
+[data-theme='dark'] .cm-root {
+  --cm-ground: #232735;
+  --cm-road: #363c4e;
+  --cm-water: #2e3954;
+  --cm-water-hi: #3a4769;
+  --cm-park: #253129;
+  --cm-tree: #2f4434;
+  --cm-lecture: #8f9cf2;
+  --cm-seminar: #4fc9c2;
+  --cm-practice: #c49aef;
+  --cm-food: #f2a65a;
+  --cm-cowork: #d7db5a;
+  --cm-sport: #6fd08d;
+  --cm-service: #a5adbf;
+  --cm-util: #6a7184;
+}
+
+.cm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── крошки ── */
+.cm-crumbs {
+  margin: -6px 0 18px;
+}
+.cm-crumbs ol {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  max-width: 100%;
+}
+.cm-crumbs li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.cm-crumbs li + li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 6px;
+  border-top: 1.75px solid var(--ink-3);
+  border-right: 1.75px solid var(--ink-3);
+  transform: rotate(45deg);
+}
+.cm-crumbs button,
+.cm-crumbs span {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.cm-crumbs button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background-color 0.15s ease-out, scale 0.15s ease-out;
+}
+.cm-crumbs span {
+  background: var(--hl);
+  color: var(--on-hl);
+}
+.cm-crumbs button:active {
+  scale: 0.96;
+}
+
+/* ── раскладка ── */
+.cm-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.cm-mapcard.card {
+  padding: 16px;
+  gap: 0;
+  border-radius: var(--r-xl);
+}
+.cm-panel.card {
+  padding: 22px;
+  gap: 22px;
+}
+.cm-panel > * {
+  min-width: 0;
+}
+@media (min-width: 1180px) {
+  .app--rail .cm-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+  }
+  .app--rail .cm-panel {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+@media (min-width: 1360px) {
+  .cm-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+  }
+  .cm-panel {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* смена уровня: мягкий выезд всего блока */
+.cm-view {
+  animation: cm-view-in 0.34s var(--ease-out);
+}
+@keyframes cm-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+}
+
+.cm-mhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 2px 4px 14px;
+}
+.cm-mhead h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  margin: 0;
+  outline: none;
+  text-wrap: balance;
+}
+.cm-mhead h2:focus,
+.cm-mhead h2:focus-visible {
+  outline: none;
+}
+.cm-grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.cm-sub {
+  margin: 2px 0 0;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.cm-hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.cm-hint--touch {
+  display: none;
+  margin: 0 6px 10px;
+}
+@media (max-width: 899px) {
+  .cm-hint--touch {
+    display: block;
+  }
+}
+@media (max-width: 759px) {
+  .cm-hint--desk {
+    display: none;
+  }
+}
+
+/* ── кнопки ── */
+.cm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--input-line);
+  background: var(--surface-solid);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition-property: background-color, border-color, scale, opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+.cm-btn--primary {
+  background: var(--hl);
+  border-color: var(--hl);
+  color: var(--on-hl);
+}
+.cm-btn--icon {
+  width: 44px;
+  padding: 0;
+}
+.cm-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cm-btn[aria-pressed='true'] {
+  background: color-mix(in oklab, var(--hl) 40%, var(--surface-solid));
+  border-color: var(--ink);
+}
+.cm-btn:enabled:active,
+.cm-seg button:active,
+.cm-chip:active,
+.cm-row:active {
+  scale: 0.96;
+}
+@media (hover: hover) {
+  .cm-btn:enabled:hover {
+    background: var(--surface-2-solid);
+  }
+  .cm-btn--primary:enabled:hover {
+    background: color-mix(in oklab, var(--hl) 86%, #181e2a);
+  }
+  .cm-seg button[aria-pressed='false']:hover {
+    background: color-mix(in oklab, var(--ink) 8%, transparent);
+  }
+  .cm-crumbs button:hover {
+    background: color-mix(in oklab, var(--ink) 8%, transparent);
+    color: var(--ink);
+  }
+  .cm-row:hover {
+    background: color-mix(in oklab, var(--ink) 5%, transparent);
+  }
+  .cm-chip:hover {
+    border-color: var(--ink-3);
+  }
+  .cm-plot[aria-pressed='false']:hover .cm-ring,
+  .cm-bld[aria-pressed='false']:hover .cm-ring {
+    stroke: var(--ink-3);
+  }
+  .cm-plot:hover .cm-plot__lift,
+  .cm-bld:hover .cm-bld__lift {
+    transform: translateY(-2px);
+  }
+  .cm-room[role='button']:not([aria-pressed='true']):hover .cm-ring {
+    stroke-width: 2.5;
+  }
+  .cm-mark:hover .cm-mark__pop {
+    scale: 1.08;
+  }
+}
+.cm-root :focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── переключатели корпус / этаж ── */
+.cm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 0 0 14px;
+}
+.cm-seg {
+  display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 4px;
+}
+.cm-seg::-webkit-scrollbar {
+  display: none;
+}
+.cm-seg button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition-property: background-color, color, scale;
+  transition-duration: 0.18s;
+  transition-timing-function: ease-out;
+}
+.cm-seg button[aria-pressed='true'] {
+  background: var(--hl);
+  color: var(--on-hl);
+}
+.cm-lt {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-inline-start: -8px;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--ink);
+  font: 600 12px var(--font-display);
+}
+.cm-seg button[aria-pressed='true'] .cm-lt {
+  background: var(--on-hl);
+  color: var(--hl);
+}
+.cm-seg--floors {
+  animation: cm-rise 0.3s var(--ease-out) both;
+}
+
+/* ── карта ── */
+.cm-scroll {
+  overflow: auto;
+  border-radius: 20px;
+  background: var(--cm-ground);
+  overscroll-behavior-x: contain;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent);
+}
+.cm-stage {
+  position: relative;
+  min-width: 600px;
+}
+.cm-stage--campus {
+  min-width: 620px;
+}
+/* на телефоне схема шире экрана и листается пальцем: подписи остаются читаемыми */
+@media (max-width: 759px) {
+  .cm-stage {
+    min-width: 780px;
+  }
+  .cm-stage--campus {
+    min-width: 800px;
+  }
+}
+.cm-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cm-svg .lbl {
+  font-family: var(--font-body);
+  fill: var(--ink);
+  pointer-events: none;
+}
+.cm-svg .ttl {
+  font-family: var(--font-display);
+  font-weight: 600;
+  fill: var(--ink);
+  pointer-events: none;
+}
+.cm-svg .muted {
+  fill: var(--ink-3);
+}
+.cm-svg g[role='button'] {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.cm-svg g[role='button']:focus-visible .cm-ring {
+  stroke: var(--ink);
+  stroke-width: 4;
+}
+.cm-ring {
+  transition: stroke 0.15s ease-out, stroke-width 0.15s ease-out, fill 0.2s ease-out;
+}
+.cm-shadow {
+  filter: url(#cm-tsh);
+}
+.cm-bld .cm-shadow {
+  filter: url(#cm-sh);
+}
+/* во время приближения тени отключаем: кадры дешевле, глазом не видно */
+.cm-svg.is-zooming .cm-shadow {
+  filter: none;
+}
+.is-soft {
+  opacity: 0.62;
+}
+.is-dim {
+  opacity: 0.22;
+}
+.cm-plot,
+.cm-bld-wrap,
+.cm-mark,
+.cm-room {
+  transition: opacity 0.2s ease-out;
+}
+.cm-plot__lift,
+.cm-bld__lift {
+  transition: transform 0.28s var(--ease-out);
+}
+.cm-plot[aria-pressed='true'] .cm-plot__lift,
+.cm-bld[aria-pressed='true'] .cm-bld__lift {
+  transform: translateY(-4px);
+}
+.cm-fade {
+  animation: cm-fade 0.24s ease-out;
+}
+@keyframes cm-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* появление слоёв схемы */
+.cm-plot {
+  animation: cm-rise 0.5s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+}
+[data-return] .cm-plot {
+  animation: none;
+}
+.cm-bld-wrap {
+  animation: cm-rise 0.45s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.cm-mark__pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cm-pop 0.38s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms + 180ms);
+  transition: scale 0.18s ease-out;
+}
+.cm-room__in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cm-room-in 0.34s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 14ms);
+}
+@keyframes cm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes cm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes cm-room-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+}
+/* маршрут «рисуется» от входа к двери */
+.cm-route__line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: cm-draw 0.75s 0.1s var(--ease-out) both;
+}
+.cm-route__end {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cm-pop 0.3s 0.75s var(--ease-out) both;
+}
+@keyframes cm-draw {
+  from {
+    stroke-dashoffset: 1.02;
+  }
+}
+.cm-fountain {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cm-ripple 3.6s ease-in-out infinite;
+}
+@keyframes cm-ripple {
+  50% {
+    transform: scale(1.35);
+    opacity: 0.35;
+  }
+}
+
+/* ── карточка кампуса над картой ── */
+.cm-pop {
+  position: absolute;
+  z-index: 3;
+  width: 300px;
+  padding: 18px;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--surface-solid) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: cm-pop-in 0.22s var(--ease-out);
+}
+@keyframes cm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+.cm-pop h3 {
+  margin: 0;
+  padding-inline-end: 44px;
+  font: 600 1rem/1.25 var(--font-display);
+}
+.cm-pop .cm-btn--primary {
+  width: 100%;
+}
+.cm-x {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
+}
+.cm-addr {
+  margin: 4px 0 0;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.cm-mini {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── плашка выбранного корпуса ── */
+.cm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 12px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--hl) 30%, var(--surface-solid));
+  animation: cm-rise 0.3s var(--ease-out) both;
+}
+.cm-bar p {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+  font-weight: 700;
+}
+.cm-bar small {
+  display: block;
+  color: var(--ink-3);
+  font-weight: 600;
+  font-size: 13px;
+}
+@media (max-width: 520px) {
+  .cm-bar {
+    border-radius: 22px;
+    padding: 14px;
+  }
+  .cm-bar .cm-btn {
+    width: 100%;
+  }
+}
+
+/* ── правая панель ── */
+.cm-h2 {
+  margin: 0 0 10px;
+  font: 600 1rem/1.25 var(--font-display);
+}
+.cm-field label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.cm-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1.5px solid var(--input-line);
+  border-radius: 999px;
+  background: var(--input-bg-solid);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px; /* меньше 16px iOS увеличивает страницу при фокусе */
+  outline-offset: 2px;
+}
+.cm-field input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+.cm-headrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cm-headrow .cm-h2 {
+  margin: 0;
+}
+.cm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cm-chip {
+  --c: var(--cm-service);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px 0 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--input-line);
+  background: var(--surface-solid);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition-property: background-color, border-color, scale;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+.cm-chip[aria-pressed='true'] {
+  border-color: var(--c);
+  background: color-mix(in oklab, var(--c) 16%, var(--surface-solid));
+  box-shadow: inset 0 0 0 1px var(--c);
+}
+.cm-dot {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--c) 24%, var(--surface-solid));
+  color: var(--ink);
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.cm-n {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.cm-chip[aria-pressed='true'] .cm-n {
+  color: var(--ink);
+}
+.cm-clear {
+  border: 0;
+  background: none;
+  padding: 0 4px;
+  min-height: 44px;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cm-clear--more {
+  margin-top: 8px;
+}
+
+/* подробности: справа на десктопе, нижняя шторка на телефоне */
+.cm-info {
+  --c: var(--accent-solid);
+  position: relative;
+  border-radius: 20px;
+  padding: 16px;
+  background: color-mix(in oklab, var(--c) 14%, var(--surface-solid));
+  box-shadow: inset 3px 0 0 var(--c);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: cm-info-in 0.26s var(--ease-out);
+}
+@keyframes cm-info-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.cm-info h3 {
+  margin: 0;
+  font: 600 0.9375rem/1.3 var(--font-display);
+  padding-inline-end: 44px;
+}
+.cm-info p {
+  margin: 0;
+}
+.cm-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: -4px;
+}
+.cm-info dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+}
+.cm-info dt {
+  color: var(--ink-3);
+}
+.cm-info dd {
+  margin: 0;
+  font-weight: 600;
+}
+.cm-info .cm-btn {
+  align-self: flex-start;
+}
+.cm-info--empty {
+  box-shadow: none;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  animation: none;
+}
+.cm-info__x {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+}
+
+.cm-ccards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cm-ccard {
+  border-radius: 22px;
+  padding: 16px;
+  background: var(--surface-solid);
+  box-shadow: inset 0 0 0 1.5px var(--line-solid);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.18s ease-out, background-color 0.18s ease-out;
+  animation: cm-rise 0.45s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms + 120ms);
+}
+[data-return] .cm-ccard {
+  animation: none;
+}
+.cm-ccard[data-on='true'] {
+  background: color-mix(in oklab, var(--hl) 26%, var(--surface-solid));
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.cm-ccard h3 {
+  margin: 0;
+  font: 600 0.9375rem/1.3 var(--font-display);
+}
+.cm-ccard .cm-addr {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.cm-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cm-acts .cm-btn--primary {
+  flex: 1 1 auto;
+}
+.cm-letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cm-letters span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+.cm-letters b {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--hl);
+  color: var(--on-hl);
+  font: 600 11px var(--font-display);
+}
+
+.cm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-group {
+  margin: 14px 4px 4px;
+  font: 800 13px var(--font-body);
+  color: var(--ink-3);
+}
+.cm-group:first-child {
+  margin-top: 4px;
+}
+.cm-row {
+  --c: var(--cm-service);
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition-property: background-color, scale;
+  transition-duration: 0.15s;
+  transition-timing-function: ease-out;
+}
+.cm-row .cm-dot {
+  width: 30px;
+  height: 30px;
+}
+.cm-row b {
+  display: block;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.cm-row small {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.cm-tag-text {
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cm-row[aria-current='true'] {
+  background: color-mix(in oklab, var(--hl) 40%, var(--surface-solid));
+  box-shadow: inset 0 0 0 1.5px var(--c);
+}
+.cm-empty-note {
+  color: var(--ink-3);
+  padding: 8px 4px;
+  margin: 0;
+}
+.cm-foot {
+  margin: 18px 4px 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  max-width: 70ch;
+}
+
+/* ═════════ Телефон ═════════ */
+@media (max-width: 759px) {
+  .cm-mapcard.card {
+    padding: 10px;
+    border-radius: 24px;
+  }
+  .cm-panel.card {
+    padding: 16px;
+    border-radius: 24px;
+  }
+  .cm-mhead {
+    margin-inline: 6px;
+  }
+  .cm-mhead .cm-btn {
+    padding: 0 14px;
+  }
+  /* на телефоне путь виден в шапке карточки и в переключателе корпусов */
+  .cm-crumbs,
+  .cm-how {
+    display: none;
+  }
+  .cm-root .page-head {
+    margin-bottom: 14px;
+  }
+  .cm-root .page-head__title {
+    margin-top: 6px;
+    font-size: 26px;
+  }
+  .cm-scroll {
+    border-radius: 16px;
+    scroll-behavior: auto;
+  }
+  .cm-tools {
+    margin-inline: 2px;
+  }
+  .cm-seg {
+    max-width: calc(100vw - 52px);
+  }
+
+  /* карточка кампуса и описание помещения — нижняя шторка над меню */
+  .cm-pop,
+  .cm-info:not(.cm-info--empty) {
+    position: fixed;
+    inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    inset-block: auto calc(92px + env(safe-area-inset-bottom));
+    top: auto !important;
+    left: max(12px, env(safe-area-inset-left)) !important;
+    width: auto;
+    max-height: 58dvh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    z-index: 25;
+    box-shadow: var(--shadow), 0 0 0 1px var(--glass-edge);
+  }
+  .cm-info:not(.cm-info--empty) {
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    background: color-mix(in oklab, var(--c) 12%, color-mix(in oklab, var(--surface-solid) 90%, transparent));
+    box-shadow: var(--shadow), inset 4px 0 0 var(--c);
+    animation: cm-sheet-in 0.3s var(--ease-out);
+  }
+  .cm-pop {
+    animation: cm-sheet-in 0.3s var(--ease-out);
+  }
+  @keyframes cm-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+  }
+  /* место под шторкой, чтобы список не упирался в неё */
+  .cm-panel {
+    padding-bottom: 16px;
+  }
+}
+@media (min-width: 760px) {
+  .cm-info__x {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .cm-back-t {
+    display: none;
+  }
+  .cm-mhead .cm-btn {
+    width: 44px;
+    padding: 0;
+  }
+}
+
+/* «Уменьшить прозрачность»: без размытия */
+@media (prefers-reduced-transparency: reduce) {
+  .cm-pop,
+  .cm-info:not(.cm-info--empty) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-solid);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-view,
+  .cm-fade,
+  .cm-plot,
+  .cm-bld-wrap,
+  .cm-mark__pop,
+  .cm-room__in,
+  .cm-route__line,
+  .cm-route__end,
+  .cm-ccard,
+  .cm-bar,
+  .cm-pop,
+  .cm-info,
+  .cm-seg--floors {
+    animation: none !important;
+  }
+  .cm-fountain {
+    animation: none;
+  }
+  .cm-plot__lift,
+  .cm-bld__lift,
+  .cm-ring,
+  .cm-mark__pop {
+    transition: none;
+  }
+}

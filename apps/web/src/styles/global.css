@@ -7907,3 +7907,35 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
     transform: none !important;
   }
 }
+
+/* ═════════ Низкие окна: боковое меню ужимается, чтобы профиль внизу не обрезался ═════════ */
+@media (min-width: 861px) and (max-height: 820px) {
+  .sidebar {
+    gap: 12px;
+    padding-top: 18px;
+  }
+  .sidebar__nav {
+    gap: 2px;
+    margin-top: 6px;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sidebar__nav::-webkit-scrollbar {
+    display: none;
+  }
+  .sidebar .nav-item {
+    min-height: 42px;
+  }
+  .sidebar .side-card {
+    padding: 12px 14px;
+  }
+}
+@media (min-width: 861px) and (max-height: 680px) {
+  .sidebar .nav-item {
+    min-height: 38px;
+  }
+  .sidebar .side-card {
+    padding: 10px 12px;
+  }
+}
