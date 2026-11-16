@@ -276,9 +276,11 @@ export function AppLayout() {
   const { loading, error, reload } = useData()
   const { pathname } = useLocation()
   const sb = useSidebarRail()
+  // внутри карты (территория → кампус → этаж) страницу вверх не уносим
+  const scrollKey = pathname.replace(/(\/map)\/.*/, '$1')
   useEffect(() => {
     window.scrollTo(0, 0)
-  }, [pathname])
+  }, [scrollKey])
   return (
     <div className={`app ${sb.pinned ? 'app--rail' : ''}`}>
       <Sidebar rail={sb.rail} peek={sb.peek} moving={sb.moving} pin={sb.pin} onEnter={sb.onEnter} onLeave={sb.onLeave} />

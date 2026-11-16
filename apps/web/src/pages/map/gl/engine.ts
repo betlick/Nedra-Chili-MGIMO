@@ -102,6 +102,10 @@ interface Pin {
   el: HTMLElement
   pos: Vector3
   key: string
+  sx?: number
+  sy?: number
+  w?: number
+  h?: number
 }
 interface Pickable { kind: 'campus' | 'building' | 'room'; id: string }
 
@@ -128,6 +132,8 @@ export class MapEngine {
   private dispose: { dispose(): void }[] = []
   private items = new Map<string, Item>()
   private pins: Pin[] = []
+  private pinsDirty = true
+  private shadowDirty = true
   private pinMap = new Map<string, HTMLElement>()
   private picks: Mesh[] = []
   private ray = new Raycaster()
@@ -166,9 +172,10 @@ export class MapEngine {
     this.pinsEl = document.createElement('div')
     this.pinsEl.className = 'cm-pins'
     this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouchy() ? 1.5 : 2))
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = PCFSoftShadowMap
+    this.renderer.shadowMap.autoUpdate = false
     const cv = this.renderer.domElement
     cv.className = 'cm-gl__canvas'
     cv.setAttribute('aria-hidden', 'true')
@@ -266,6 +273,7 @@ export class MapEngine {
     return this.w < 560 ? base * (this.state?.level === 'plan' ? 1.3 : 1.6) : base
   }
   private applyProjection() {
+    this.pinsDirty = true
     if (this.shift > 0.5) this.camera.setViewOffset(this.w, this.h, 0, this.shift, this.w, this.h)
     else this.camera.clearViewOffset()
     this.camera.updateProjectionMatrix()
@@ -282,6 +290,7 @@ export class MapEngine {
     return { target: this.controls.target.clone(), az: sp.theta, pol: sp.phi, zoom: this.camera.zoom }
   }
   private setView(v: CamView) {
+    this.pinsDirty = true
     const p = new Vector3().setFromSpherical(new Spherical(260, v.pol, v.az))
     this.controls.target.copy(v.target)
     this.camera.position.copy(v.target).add(p)
@@ -516,6 +525,8 @@ export class MapEngine {
     if (o.delay != null) el.style.setProperty('--d', `${o.delay}ms`)
     this.pinsEl.appendChild(el)
     this.pins.push({ el, pos: o.pos, key: o.key })
+    this.pinsDirty = true
+    this.shadowDirty = true
     this.pinMap.set(o.key, el)
     return el
   }
@@ -769,6 +780,8 @@ export class MapEngine {
 
   /* ───────── применяем выбор, фильтр ───────── */
   private applyState(animate: boolean) {
+    this.pinsDirty = true
+    this.shadowDirty = true
     const s = this.state
     if (!s) return
     let selKey: string | null = null
@@ -901,7 +914,7 @@ export class MapEngine {
       })
       if (p >= 1) { this.tween = null; this.controls.enabled = true; tw.done?.() }
       busy = true
-    } else if (this.controls.update()) busy = true
+    } else if (this.controls.update()) { busy = true; this.pinsDirty = true }
     // сдвиг кадра над шторкой
     if (Math.abs(this.shift - this.shiftT) > 0.5) {
       this.shift += (this.shiftT - this.shift) * (reduced() ? 1 : 1 - Math.exp(-dt * 10))
@@ -913,12 +926,14 @@ export class MapEngine {
     for (const it of this.items.values()) {
       const gT = (now - it.t0) / 460
       const gr = reduced() ? 1 : easeOut(gT)
-      if (gr < 1) busy = true
-      if (Math.abs(it.sel - it.selT) > 0.004 || Math.abs(it.dim - it.dimT) > 0.004 || Math.abs(it.hover - it.hoverT) > 0.004) {
+      if (gr < 1) { busy = true; this.shadowDirty = true }
+      const moving = Math.abs(it.sel - it.selT) > 0.004 || Math.abs(it.dim - it.dimT) > 0.004
+      if (moving || Math.abs(it.hover - it.hoverT) > 0.004) {
         it.sel += (it.selT - it.sel) * k
         it.dim += (it.dimT - it.dim) * k
         it.hover += (it.hoverT - it.hover) * k
         busy = true
+        if (moving) this.shadowDirty = true
       } else { it.sel = it.selT; it.dim = it.dimT; it.hover = it.hoverT }
       const hs = (1 - it.dim * (1 - it.dimH)) * (1 + it.sel * (it.selH - 1))
       it.group.scale.y = Math.max(0.001, gr * hs)
@@ -936,11 +951,12 @@ export class MapEngine {
     if (this.routeMesh && this.routeCount) {
       const p = reduced() ? 1 : easeInOut((now - this.routeT0 - 250) / 900)
       this.routeMesh.geometry.setDrawRange(0, Math.floor((this.routeCount * Math.max(0, p)) / 3) * 3)
-      if (p < 1) busy = true
+      if (p < 1) { busy = true; this.shadowDirty = true }
     }
     if ((busy || this.dirty) && !this.lost) {
+      if (this.shadowDirty) { this.renderer.shadowMap.needsUpdate = true; this.shadowDirty = false }
       this.renderer.render(this.scene, this.camera)
-      this.placePins()
+      if (this.pinsDirty) { this.pinsDirty = false; this.placePins() }
     }
     this.dirty = false
     if (busy) this.raf = requestAnimationFrame(this.frame)
@@ -951,10 +967,48 @@ export class MapEngine {
     const w = this.w, h = this.h
     for (const p of this.pins) {
       v.copy(p.pos).project(this.camera)
-      const x = (v.x * 0.5 + 0.5) * w
+      let x = (v.x * 0.5 + 0.5) * w
       const y = (-v.y * 0.5 + 0.5) * h
+      if (p.el.classList.contains('cm-pin--tag')) {
+        const half = this.size(p).w / 2 + 8
+        x = Math.min(Math.max(x, half), w - half)
+      }
       p.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`
       p.el.style.zIndex = String(Math.round((1 - v.z) * 500) + (p.el.classList.contains('is-sel') ? 1000 : 0))
+      p.sx = x
+      p.sy = y
+    }
+    this.declutter()
+  }
+
+  private size(p: Pin) {
+    if (p.w === undefined) { p.w = p.el.offsetWidth; p.h = p.el.offsetHeight }
+    return { w: p.w, h: p.h ?? 0 }
+  }
+
+  /** Важные подписи остаются, менее важные, которым не хватило места, прячутся. */
+  private declutter() {
+    const rank = (el: HTMLElement) => {
+      const c = el.classList
+      if (c.contains('is-sel')) return 9
+      if (c.contains('cm-pin--tag')) return 8
+      if (c.contains('cm-pin--bld') || c.contains('cm-pin--room')) return c.contains('is-named') ? 5 : 7
+      if (c.contains('cm-pin--letter') || c.contains('cm-pin--mark')) return 6
+      if (c.contains('cm-pin--metro') || c.contains('cm-pin--poi')) return 4
+      if (c.contains('cm-pin--bus')) return 3
+      return 2
+    }
+    const list = this.pins
+      .filter((p) => p.sx !== undefined)
+      .map((p) => ({ p, r: rank(p.el), w: this.size(p).w, h: this.size(p).h }))
+      .sort((a, b) => b.r - a.r)
+    const kept: { x0: number; x1: number; y0: number; y1: number }[] = []
+    for (const { p, r, w, h } of list) {
+      const m = 3
+      const box = { x0: p.sx! - w / 2 - m, x1: p.sx! + w / 2 + m, y0: p.sy! - h / 2 - m, y1: p.sy! + h / 2 + m }
+      const hit = r < 9 && kept.some((k) => box.x0 < k.x1 && box.x1 > k.x0 && box.y0 < k.y1 && box.y1 > k.y0)
+      p.el.classList.toggle('is-occ', hit)
+      if (!hit) kept.push(box)
     }
   }
 

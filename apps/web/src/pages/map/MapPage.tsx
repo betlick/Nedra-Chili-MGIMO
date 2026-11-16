@@ -469,7 +469,6 @@ export const MapPage = memo(function MapPage() {
     if (shownCampus.current === campus) return
     shownCampus.current = campus
     document.getElementById(campus ? 'cm-ch' : 'cm-th')?.focus({ preventScroll: true })
-    window.scrollTo({ top: 0, behavior: 'auto' })
   }, [campus])
 
   const say = useCallback<Say>((t) => { setMsg(''); window.setTimeout(() => setMsg(t), 30) }, [])

@@ -562,6 +562,7 @@ button.cm-pin {
   transition: background-color 0.2s var(--ease-out);
 }
 .cm-pin--room b {
+  display: none;
   padding: 3px 7px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--surface-solid) 88%, transparent);
@@ -1213,6 +1214,47 @@ button.cm-pin:active {
   .cm-info__x {
     display: none;
   }
+  /* на компьютере карточка кампуса — тонкая полоска внизу, карта остаётся видна */
+  .cm-pop {
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+    max-width: min(460px, calc(100% - 96px));
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 8px 8px 16px;
+    border-radius: 999px;
+  }
+  .cm-pop > div {
+    min-width: 0;
+    flex: 1;
+  }
+  .cm-pop h3 {
+    padding-inline-end: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cm-pop .cm-addr {
+    margin: 2px 0 0;
+    font-size: 12px;
+  }
+  .cm-pop .cm-mini,
+  .cm-pop .cm-hint {
+    display: none;
+  }
+  .cm-pop .cm-btn--primary {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
+  }
+  .cm-pop .cm-x {
+    position: static;
+    order: 3;
+    flex: none;
+  }
 }
 @media (max-width: 520px) {
   .cm-back-t {
@@ -1250,4 +1292,10 @@ button.cm-pin:active {
   .cm-ctl__b {
     transition: none;
   }
+}
+
+/* подпись, которой не хватило места: прячем, чтобы тексты не налезали друг на друга */
+.cm-pin.is-occ {
+  visibility: hidden;
+  pointer-events: none;
 }

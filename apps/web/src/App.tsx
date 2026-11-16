@@ -1,5 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { lazy, Suspense, useEffect, type ReactElement } from 'react'
+import { lazy, Suspense, useEffect, useSyncExternalStore, type ReactElement } from 'react'
 import { AuthProvider, useAuth } from './context/auth'
 import { DataProvider } from './context/data'
 import { SettingsProvider } from './context/settings'
@@ -53,8 +53,16 @@ function usePrefetchPages(role: Role | undefined) {
   }, [role])
 }
 
+function subscribeHash(cb: () => void) {
+  window.addEventListener('hashchange', cb)
+  return () => window.removeEventListener('hashchange', cb)
+}
+
 function NewYearBackdrop() {
-  return useNewYear() ? <Snow /> : null
+  const ny = useNewYear()
+  // на 3D-карте снег не рисуем: два холста подряд заметно тормозят
+  const onMap = useSyncExternalStore(subscribeHash, () => /\/map(\/|$)/.test(window.location.hash), () => false)
+  return ny && !onMap ? <Snow /> : null
 }
 
 function AuthenticatedApp() {
