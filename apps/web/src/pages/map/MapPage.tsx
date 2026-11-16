@@ -387,6 +387,8 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
             <span className="cm-back-t">Вся территория</span>
           </button>
         </div>
+        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
+        <Stage3D state={sceneState} intro="in" cbs={cbs} wide={!!b} />
         <div className="cm-tools">
           <div className="cm-seg" role="group" aria-label="Схема кампуса или корпус">
             <button type="button" aria-pressed={!b} onClick={() => b && toSite()}>Схема кампуса</button>
@@ -404,8 +406,6 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
             </div>
           )}
         </div>
-        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
-        <Stage3D state={sceneState} intro="in" cbs={cbs} wide={!!b} />
         {sb && (
           <div className="cm-bar">
             <p>Корпус {sb.id}, {sb.name}<small>{plural(sb.floors, FORMS.floor)}: {sb.desc.toLowerCase()}</small></p>
