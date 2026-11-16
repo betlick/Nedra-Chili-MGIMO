@@ -278,6 +278,9 @@ export class MapEngine {
   /** Витрина: сцена целиком на узком экране, без запаса под перетаскивание. */
   setShowcase(on: boolean) {
     this.showcase = on
+    // витрина рисует на весь экран и всё время в движении: плотность пикселей ниже
+    this.baseRatio = Math.min(window.devicePixelRatio || 1, on ? 1.25 : isTouchy() ? 1.5 : 2)
+    this.setRatio(this.baseRatio)
     this.fit = this.calcFit()
     this.home.zoom = this.fit
     this.controls.minZoom = this.fit * 0.55
@@ -357,7 +360,7 @@ export class MapEngine {
   }
   /** Телефон: нижняя шторка закрывает часть карты. Сдвигаем картинку так, чтобы центр сцены оказался в видимой части. */
   refreshInset() {
-    if (this.dead) return
+    if (this.dead || this.showcase) return
     const phone = matchMedia('(max-width: 759px)').matches
     const sheet = phone ? document.querySelector<HTMLElement>('.cm-pop, .cm-info:not(.cm-info--empty)') : null
     if (!sheet || !this.attached) return this.setInset(0)
