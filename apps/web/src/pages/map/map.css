@@ -172,10 +172,24 @@
 
 .cm-mhead {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px 16px;
+  height: 52px;
   margin: 2px 4px 14px;
+}
+/* шапка одной высоты на всех уровнях, чтобы карта не ездила по экрану */
+.cm-mhead > * {
+  min-width: 0;
+}
+.cm-mhead .cm-btn {
+  flex: none;
+}
+.cm-mhead .cm-hint--desk {
+  flex: 0 1 300px;
+  line-height: 1.3;
+  max-height: 36px;
+  overflow: hidden;
 }
 .cm-mhead h2 {
   font-family: var(--font-display);
@@ -195,6 +209,9 @@
   min-width: 0;
 }
 .cm-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 2px 0 0;
   color: var(--ink-3);
   font-size: 14px;
@@ -387,9 +404,6 @@
   position: relative;
   height: clamp(440px, 64vh, 700px);
   scroll-margin-top: 96px;
-}
-.cm-stage--wide {
-  height: clamp(440px, 62vh, 660px);
 }
 .cm-gl {
   position: absolute;
