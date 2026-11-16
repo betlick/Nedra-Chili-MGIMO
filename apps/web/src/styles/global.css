@@ -7939,3 +7939,22 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
     padding: 10px 12px;
   }
 }
+
+/* ═════════ Профиль: ФИО подстраивается под ширину блока, слова не рвутся посередине ═════════ */
+.profile-head > div {
+  min-width: 0;
+  container-type: inline-size;
+}
+.profile-head__name {
+  /* самое длинное слово («Демонстрационный», 16 букв в широкой гарнитуре) должно влезать целиком */
+  font-size: clamp(16px, 6.6cqi, 32px);
+  overflow-wrap: break-word;
+  hyphens: none;
+  text-wrap: balance;
+}
+@media (max-width: 900px) {
+  .profile-head > div {
+    align-self: stretch;
+    width: 100%;
+  }
+}
