@@ -77,19 +77,12 @@ function Showcase() {
     [],
   )
 
-  // фон body с fixed-вложением перерисовывается на каждом кадре прокрутки: на витрине он закрыт картой
-  useEffect(() => {
-    document.documentElement.classList.add('wl-active')
-    return () => document.documentElement.classList.remove('wl-active')
-  }, [])
-
   // холст уезжает на фон витрины
   useEffect(() => {
     if (!engine || !stageRef.current) return
     engine.attach(stageRef.current)
     engine.setCallbacks(cbs)
     engine.set({ level: 'territory', sel: null } satisfies SceneState, 'in')
-    if (import.meta.env.DEV) (window as unknown as { __eng: unknown }).__eng = engine
     engine.setShowcase(true)
     engine.setInset(phone() ? window.innerHeight * 0.2 : 0)
     return () => engine.setShowcase(false)

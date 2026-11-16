@@ -202,9 +202,3 @@
     transition: none;
   }
 }
-
-/* fixed-фон body на витрине не нужен: его закрывает карта, а перерисовывается он на каждом кадре прокрутки */
-html.wl-active body {
-  background-image: none;
-  background-attachment: scroll;
-}

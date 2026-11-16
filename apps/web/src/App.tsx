@@ -61,8 +61,8 @@ function subscribeHash(cb: () => void) {
 
 function NewYearBackdrop() {
   const ny = useNewYear()
-  // на 3D-карте и витрине снег не рисуем: два холста подряд заметно тормозят
-  const onMap = useSyncExternalStore(subscribeHash, () => /\/(map|welcome)(\/|$)/.test(window.location.hash), () => false)
+  // на 3D-карте снег не рисуем: два холста подряд заметно тормозят
+  const onMap = useSyncExternalStore(subscribeHash, () => /\/map(\/|$)/.test(window.location.hash), () => false)
   return ny && !onMap ? <Snow /> : null
 }
 
