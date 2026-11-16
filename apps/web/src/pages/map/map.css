@@ -1245,6 +1245,42 @@ button.cm-pin {
       transform: translateY(28px);
     }
   }
+  /* шторки компактнее: меньше отступов и текста, чтобы карта оставалась видна */
+  .cm-pop,
+  .cm-info:not(.cm-info--empty) {
+    padding: 12px 14px;
+    gap: 6px;
+    max-height: 42dvh;
+    border-radius: 20px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .cm-info:not(.cm-info--empty) h3 {
+    font-size: 1rem;
+    padding-inline-end: 48px;
+  }
+  .cm-info:not(.cm-info--empty) dl {
+    gap: 2px 12px;
+    font-size: 13px;
+  }
+  .cm-info:not(.cm-info--empty) .cm-kind {
+    font-size: 12px;
+    margin-bottom: -2px;
+  }
+  .cm-info:not(.cm-info--empty) .cm-btn,
+  .cm-pop .cm-btn--primary {
+    min-height: 40px;
+    height: 40px;
+    padding-inline: 16px;
+    font-size: 14px;
+  }
+  .cm-info__x,
+  .cm-pop .cm-x {
+    width: 40px;
+    height: 40px;
+    inset-block-start: 8px;
+    inset-inline-end: 8px;
+  }
   /* место под шторкой, чтобы список не упирался в неё */
   .cm-panel {
     padding-bottom: 16px;
