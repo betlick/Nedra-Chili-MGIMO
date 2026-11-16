@@ -6,3 +6,9 @@ export const nowMinutes=(now:Date)=>toMinutes(moscowTime(now))
 export function lessonsForDate(all:Lesson[],now:Date){return all.filter(l=>l.date===moscowYmd(now))}
 export function todayLessons(all:Lesson[],now:Date){return lessonsForDate(all,now).sort((a,b)=>toMinutes(a.start)-toMinutes(b.start))}
 export function nextLesson(all:Lesson[],now:Date){return todayLessons(all,now).find(l=>l.status!=='cancelled'&&toMinutes(l.start)>=nowMinutes(now))}
+
+/** Ближайшая пара после сегодняшнего дня (первая из следующих дней, где есть занятия). */
+export function upcomingLesson(all:Lesson[],now:Date){
+  const today=moscowYmd(now)
+  return all.filter(l=>l.date&&l.date>today&&l.status!=='cancelled').sort((a,b)=>(a.date!+a.start).localeCompare(b.date!+b.start))[0]
+}

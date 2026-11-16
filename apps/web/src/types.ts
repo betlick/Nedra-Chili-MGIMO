@@ -12,6 +12,8 @@ export interface User {
   initials: string
   group?: string
   department: string
+  program?: string
+  year?: number
   title: string // «Студентка · группа ИМО-21»
 }
 

@@ -7958,3 +7958,59 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
     width: 100%;
   }
 }
+
+/* ═════════ Аудитория в расписании — ссылка «Как пройти» на карту ═════════ */
+.room-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 6px;
+}
+.room-link svg {
+  flex: none;
+  opacity: 0.7;
+}
+@media (hover: hover) {
+  .room-link:hover {
+    text-decoration-style: solid;
+  }
+  .room-link:hover svg {
+    opacity: 1;
+  }
+}
+.room-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* ═════════ «Сколько баллов до цели» на странице предметов ═════════ */
+.goal__list {
+  list-style: none;
+  margin: 14px 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.goal__list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.goal__list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.goal__list li > b {
+  font-variant-numeric: tabular-nums;
+}
+.goal__list li.is-done > b {
+  font-weight: 600;
+  color: var(--ink-3);
+}

@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Lesson } from '../types'
-import { moscowCivil, useSchedule } from '../lib/useSchedule'
-import { nextLesson, nowMinutes, todayIndex, todayLessons } from '../lib/lessons'
+import { moscowCivil, moscowYmd, useSchedule } from '../lib/useSchedule'
+import { nextLesson, nowMinutes, todayIndex, todayLessons, upcomingLesson } from '../lib/lessons'
 import { useNow } from '../context/clock'
 import { addDays, humanDuration, monthShort, pluralize, toMinutes, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/format'
 import { Badge, ButtonLink, Segmented } from './ui'
@@ -10,8 +11,23 @@ import { Garland, Ornaments, Snowflake, useNewYear } from './newyear'
 import { Icon } from './Icon'
 import { FitText } from './FitText'
 import { WeekPicker } from './WeekPicker'
+import { useUser } from '../context/auth'
+import { roomMapLink } from '../lib/rooms'
 
 const kindTone = (k: Lesson['kind']) => (k === 'Лекция' ? 'accent' : 'neutral')
+
+/** Аудитория: если она есть на карте, это ссылка «Как пройти» на план этажа с маршрутом. */
+export function RoomLink({ room }: { room: string }) {
+  const user = useUser()
+  const link = roomMapLink(room, user.role)
+  if (!link) return <>{room}</>
+  return (
+    <Link className="room-link" to={link.to} state={link.state} aria-label={`Как пройти: ${room}`} title="Как пройти">
+      {room}
+      <Icon name="route" size={13} aria-hidden="true" />
+    </Link>
+  )
+}
 
 const subline = (l: Lesson, who: 'teacher' | 'group') => (who === 'teacher' ? l.teacher : `Группа ${l.group}`)
 
@@ -30,15 +46,44 @@ export function NextLessonHero({ lessons, who, scheduleLink, compact }: { lesson
       <Snowflake size={compact ? 84 : 104} className="hero__flake" />
     </>
   )
-  if (!l)
+  if (!l) {
+    // пары на сегодня закончились: вместо «занятий больше нет» показываем, что дальше
+    const later = upcomingLesson(lessons, now)
+    const tomorrow = later?.date === moscowYmd(new Date(+now + 86400000))
+    const when = later?.date
+      ? tomorrow
+        ? 'Завтра'
+        : new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${later.date}T12:00:00+03:00`))
+      : ''
     return (
       <section className={`hero ${compact ? 'hero--compact' : ''} ${ny ? 'hero--ny' : ''}`}>
         {decor}
-        <div className="eyebrow">Сегодня</div>
-        <div className="hero__title hero__title--empty">Занятий больше нет</div>
-        <div className="hero__meta">Расписание на неделю — в разделе «Расписание»</div>
+        <div className="eyebrow">{later ? `${when} · первая пара` : 'Сегодня'}</div>
+        {later ? (
+          <>
+            <FitText className="hero__subject display" max={58} min={24} lines={2}>{later.subject}</FitText>
+            <div className="hero__when">
+              <span className="hero__time display">{later.start}</span>
+              <span className="hero__end">– {later.end}</span>
+            </div>
+            <div className="hero__meta">
+              {later.kind} · {who === 'group' ? <>группа {later.group} · <RoomLink room={later.room} /></> : <><RoomLink room={later.room} /> · {later.teacher}</>}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="hero__title hero__title--empty">Занятий больше нет</div>
+            <div className="hero__meta">Расписание на неделю — в разделе «Расписание»</div>
+          </>
+        )}
+        {later && scheduleLink && (
+          <div className="hero__actions">
+            <ButtonLink to={scheduleLink} variant="hl" icon="calendar" size="sm">Всё расписание</ButtonLink>
+          </div>
+        )}
       </section>
     )
+  }
   const left = toMinutes(l.end) - m
   const until = toMinutes(l.start) - m
   const progress = current ? (m - toMinutes(l.start)) / (toMinutes(l.end) - toMinutes(l.start)) : 0
@@ -63,7 +108,7 @@ export function NextLessonHero({ lessons, who, scheduleLink, compact }: { lesson
         <span className="hero__end">– {l.end}</span>
       </div>
       <div className="hero__meta">
-        {l.kind} · {who === 'group' ? `группа ${l.group} · ${l.room}` : `${l.room} · ${l.teacher}`}
+        {l.kind} · {who === 'group' ? <>группа {l.group} · <RoomLink room={l.room} /></> : <><RoomLink room={l.room} /> · {l.teacher}</>}
       </div>
       {current && (
         <span className="hero__progress" role="progressbar" aria-label="Прошло времени" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
@@ -129,7 +174,7 @@ export function TodayTimeline({ lessons, who }: { lessons: Lesson[]; who: 'teach
                   )}
                 </div>
                 <div className="timeline__meta">
-                  {subline(l, who)} · {l.room}
+                  {subline(l, who)} · <RoomLink room={l.room} />
                   {past ? ' · прошло' : ongoing ? ` · ещё ${humanDuration(toMinutes(l.end) - nowMinutes(now))}` : ''}
                   {l.status === 'moved' ? ` · было ${l.movedFrom?.replace(' · ', ', ')}` : ''}
                 </div>
@@ -161,7 +206,7 @@ function GridCell({ l, who, live }: { l: Lesson; who: 'teacher' | 'group'; live:
       <h4 className={`tc__title ${l.status === 'cancelled' ? 'strike' : ''}`}>
         {l.subject.split(/(\S+-\S+)/).map((part, i) => (i % 2 ? <span key={i} className="nowrap">{part}</span> : part))}
       </h4>
-      <p className="tc__meta">{l.room}</p>
+      <p className="tc__meta"><RoomLink room={l.room} /></p>
       <p className="tc__meta">{subline(l, who)}</p>
       <div className="tc__foot">
         {live && (

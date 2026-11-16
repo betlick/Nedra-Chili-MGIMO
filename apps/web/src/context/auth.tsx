@@ -36,6 +36,8 @@ function toUser(profile: ApiProfile): User {
     firstName, lastName, patronymic: rest.join(' ') || undefined,
     initials: `${lastName[0] ?? ''}${firstName[0] ?? ''}`,
     group,
+    program: profile.program ?? undefined,
+    year: profile.year ?? undefined,
     department: profile.role === 'teacher' ? profile.department ?? profile.faculty ?? '' : profile.faculty ?? '',
     title: profile.role === 'student' ? `Студент · группа ${group ?? '—'}`
       : profile.role === 'staff' ? 'Сотрудник деканата'

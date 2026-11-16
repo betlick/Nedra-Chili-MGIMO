@@ -22,4 +22,5 @@ export function useSchedule(from: string, to: string) {
         reload(); }; window.addEventListener('focus', f); const timer = setInterval(f, 60000); return () => { clearInterval(timer); window.removeEventListener('focus', f); }; }, [reload]);
     return { lessons, loading, error, reload };
 }
-export function useTodaySchedule(now: Date) { const date = moscowYmd(now); const next = moscowYmd(new Date(+now + 86400000)); return useSchedule(date, next); }
+// берём четыре дня вперёд, чтобы после последней пары показать ближайшую следующую; «сегодня» из этого выбирают по дате
+export function useTodaySchedule(now: Date) { const date = moscowYmd(now); const to = moscowYmd(new Date(+now + 4 * 86400000)); return useSchedule(date, to); }

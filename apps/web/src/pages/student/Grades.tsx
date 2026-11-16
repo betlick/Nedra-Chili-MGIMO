@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
-import { average, gradeLabel } from '../../lib/format'
+import { average, gradeLabel, markFor, pluralize } from '../../lib/format'
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -11,6 +11,7 @@ export function GradesPage() {
   const navigate = useNavigate()
   const { forMe } = useMaterials()
   const [selectedTerm,setTerm]=useState('')
+  const [goal,setGoal]=useState<'3'|'4'|'5'>('5')
   const semesters=[...new Set(grades.map(g=>g.semester))].sort((a,b)=>b-a)
   const term=selectedTerm||String(semesters[0]??1)
   const all=grades.filter(g=>String(g.semester)===term)
@@ -30,6 +31,12 @@ export function GradesPage() {
   const admitted = list.filter((d) => d.score >= 50).length
   const exams = all.filter((d) => d.form === 'Экзамен').length
   const credits = all.length - exams
+  // порог баллов для оценки: шкала из markFor (50 / 70 / 85); для зачёта цель всегда 50
+  const THRESHOLD = { '3': 50, '4': 70, '5': 85 } as const
+  const toGoal = list.map((d) => {
+    const need = (d.form === 'Зачёт' ? 50 : THRESHOLD[goal]) - d.score
+    return { d, need: Math.max(0, need) }
+  })
   const weakest = [...list].sort((a, b) => a.score - b.score)[0]
 
   return (
@@ -128,6 +135,32 @@ export function GradesPage() {
               «{weakest.name}» — {weakest.score} баллов: {weakest.score >= 50 ? (weakest.form === 'Зачёт' ? 'зачёт есть' : 'допуск есть') : 'допуска пока нет'}, но это самый низкий результат семестра.
             </p>
           </section>}
+
+          {list.length > 0 && (
+            <section className="card goal">
+              <div className="card__head">
+                <h2 className="card__title card__title--lg">Сколько баллов до цели</h2>
+                <Segmented
+                  label="Цель по экзаменам"
+                  value={goal}
+                  onChange={setGoal}
+                  options={[{ value: '3', label: '3' }, { value: '4', label: '4' }, { value: '5', label: '5' }]}
+                />
+              </div>
+              <ul className="goal__list">
+                {toGoal.map(({ d, need }) => (
+                  <li key={d.id} className={need === 0 ? 'is-done' : ''}>
+                    <span>
+                      {d.form === 'Зачёт' ? 'Зачёт' : `До ${goal}`} по «{d.name}»
+                      {d.form === 'Экзамен' && markFor(d.score) > Number(goal) ? ` (сейчас ${markFor(d.score)})` : ''}
+                    </span>
+                    <b>{need === 0 ? 'Уже есть' : `не хватает ${need} ${pluralize(need, 'балла', 'баллов', 'баллов')}`}</b>
+                  </li>
+                ))}
+              </ul>
+              <p className="small muted">Считаем по текущим баллам: шкала 50 — «3», 70 — «4», 85 — «5». Для зачёта достаточно 50.</p>
+            </section>
+          )}
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

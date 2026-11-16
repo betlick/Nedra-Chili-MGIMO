@@ -137,18 +137,20 @@ export function StudentHome() {
           </div>
 
           <div className="stats stats--2 only-mobile">
-            <div className="stat stat--hl stat--ring">
+            <div className="stat stat--hl stat--ring" style={upcomingDeadlines[0] ? undefined : { gridColumn: '1 / -1' }}>
               <span className="stat__label">Средний балл</span>
               <Ring value={avg} size={84} stroke={9} />
               <Link to="/student/grades" className="link">
                 Все предметы <Icon name="arrowRight" size={14} />
               </Link>
             </div>
-            <div className="stat">
-              <span className="stat__label">Дедлайн</span>
-              <b className="stat__text">{upcomingDeadlines[0]?.title ?? 'Ближайших нет'}</b>
-              {upcomingDeadlines[0] && <span className="stat__danger">{deadlineDate(upcomingDeadlines[0].dueAt)} МСК</span>}
-            </div>
+            {upcomingDeadlines[0] && (
+              <div className="stat">
+                <span className="stat__label">Дедлайн</span>
+                <b className="stat__text">{upcomingDeadlines[0].title}</b>
+                <span className="stat__danger">{deadlineDate(upcomingDeadlines[0].dueAt)} МСК</span>
+              </div>
+            )}
           </div>
 
           <TodayTimeline lessons={lessons} who="teacher" />

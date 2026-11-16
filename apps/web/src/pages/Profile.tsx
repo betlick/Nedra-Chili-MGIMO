@@ -59,7 +59,9 @@ export function ProfilePage() {
       ]
     : isStudent
     ? [
-        ['Подразделение', user.department],
+        ['Факультет', user.department || '—'],
+        ['Направление', user.program ?? '—'],
+        ['Курс', user.year ? `${user.year} курс` : '—'],
         ['Группа', user.group ?? '—'],
         ['Почта', user.email],
         ['Роль', 'Студент'],
