@@ -476,7 +476,7 @@ button.cm-pin {
   -webkit-tap-highlight-color: transparent;
 }
 .cm-pin.is-dim {
-  opacity: 0.32;
+  opacity: 0.55;
 }
 .cm-pin svg {
   display: block;

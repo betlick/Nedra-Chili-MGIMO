@@ -729,7 +729,7 @@ export class MapEngine {
       const baseH = util ? 0.7 : 1.25
       const it = this.block(`room:${r.id}`, {
         w: bw, h: baseH, d: bd, x: cx, z: cz, y: 0.62, color: p.room[r.cat], outline: true, delay: i * 45,
-        pick: util ? undefined : { kind: 'room', id: r.id }, lift: 0, dimH: 0.45, selH: 1.85,
+        pick: util ? undefined : { kind: 'room', id: r.id }, lift: 0, dimH: 0.7, selH: 1.85,
       })
       it.hl = p.hl
       if (util) {
@@ -957,7 +957,7 @@ export class MapEngine {
       if (ring) ring.visible = it.sel > 0.05
       it.mats.forEach((m, i) => {
         m.color.copy(it.base[i])
-        if (it.dim) m.color.lerp(this.pal.ground, it.dim * 0.55)
+        if (it.dim) m.color.lerp(this.pal.ground, it.dim * 0.3)
         if (it.sel) m.color.lerp(it.hl, it.sel * (it.mats.length > 1 && i < it.mats.length - 1 ? 0.12 : 0.9))
         if (it.hover) m.color.lerp(this.pal.surface, it.hover * 0.22)
       })
