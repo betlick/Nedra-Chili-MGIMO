@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, type NavigateOptions } from 'react-router-dom'
 import { Card, PageHeader, ThemeButton } from '../../components/ui'
 import { useUser } from '../../context/auth'
 import {
@@ -10,7 +10,7 @@ import { MapIcon } from './MapIcon'
 import { EngineProvider, Stage3D } from './useEngine'
 import { useDive } from './engineCtx'
 import type { Callbacks, SceneState } from './gl/engine'
-import { isPhone, reducedMotion } from './helpers'
+import { canViewTransition, isPhone, reducedMotion } from './helpers'
 import './map.css'
 
 type Say = (text: string) => void
@@ -378,14 +378,14 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
     <div className="cm-layout">
       <Card className="cm-mapcard">
         <div className="cm-mhead">
-          <button type="button" className="cm-btn" onClick={up}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
-            <span className="cm-back-t">Вся территория</span>
-          </button>
           <div className="cm-grow">
             <h2 id="cm-ch" tabIndex={-1}>{campus.name}</h2>
             <p className="cm-sub">{b ? `${campus.addr}. Корпус ${b}, ${B!.name}` : <>{campus.addr}.<span className="cm-how"> {campus.how}</span></>}</p>
           </div>
+          <button type="button" className="cm-btn" onClick={up}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            <span className="cm-back-t">Вся территория</span>
+          </button>
         </div>
         <div className="cm-tools">
           <div className="cm-seg" role="group" aria-label="Схема кампуса или корпус">
@@ -454,7 +454,12 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
 /* ═════════════════════════ СТРАНИЦА ═════════════════════════ */
 export const MapPage = memo(function MapPage() {
   const role = useUser().role
-  const navigate = useNavigate()
+  const rawNavigate = useNavigate()
+  // переходы между уровнями карты — с плавным перекрёстным затуханием (View Transitions)
+  const navigate = useCallback(
+    (to: string, opts?: NavigateOptions) => rawNavigate(to, { ...opts, viewTransition: canViewTransition() }),
+    [rawNavigate],
+  )
   const location = useLocation()
   const { campus, b, f } = useMapRoute()
   const base = `/${role}/map`

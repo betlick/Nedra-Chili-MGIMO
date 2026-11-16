@@ -150,6 +150,19 @@
 .cm-view {
   animation: cm-view-in 0.34s var(--ease-out);
 }
+/* где есть View Transitions, смену уровня плавно перекрёстно растворяет браузер, мигание блока не нужно */
+@supports (view-transition-name: none) {
+  .cm-view {
+    animation: none;
+  }
+  .cm-gl--in .cm-gl__canvas {
+    animation-duration: 0.25s;
+  }
+}
+::view-transition-group(root) {
+  animation-duration: 0.32s;
+  animation-timing-function: var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
+}
 @keyframes cm-view-in {
   from {
     opacity: 0;
@@ -649,12 +662,6 @@ button.cm-pin {
   .cm-pin--bld:not(.is-sel):hover {
     border-color: var(--ink);
   }
-  button.cm-pin:hover {
-    scale: 1.07;
-  }
-}
-button.cm-pin:active {
-  scale: 0.96;
 }
 
 /* телефон: вертикальный свайп прокручивает страницу, горизонтальный вращает карту, щипок меняет масштаб */
