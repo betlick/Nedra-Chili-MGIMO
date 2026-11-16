@@ -27,6 +27,7 @@ const TeacherDeadlinesPage = lazy(() => import('./pages/teacher/Deadlines').then
 const StaffTasksPage = lazy(() => import('./pages/staff/Tasks').then((m) => ({ default: m.StaffTasksPage })))
 const StaffAnnouncementsPage = lazy(() => import('./pages/staff/Announcements').then((m) => ({ default: m.StaffAnnouncementsPage })))
 const StaffSchedulePage = lazy(() => import('./pages/staff/Schedule').then((m) => ({ default: m.StaffSchedulePage })))
+const WelcomePage = lazy(() => import('./pages/welcome/WelcomePage').then((m) => ({ default: m.WelcomePage })))
 const MapPage = lazy(() => import('./pages/map/MapPage').then((m) => ({ default: m.MapPage })))
 
 /* Страницы грузятся отдельными кусками. Когда браузер свободен, догружаем остальные,
@@ -80,7 +81,7 @@ function RequireRole({ role, children }: { role: Role; children: ReactElement })
 
 function Home() {
   const { user } = useAuth()
-  return <Navigate to={user ? `/${user.role}` : '/login'} replace />
+  return <Navigate to={user ? `/${user.role}` : '/welcome'} replace />
 }
 
 function GuestOnly({ children }: { children: ReactElement }) {
@@ -98,6 +99,7 @@ function AppRoutes() {
               <Suspense fallback={null}>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/welcome" element={<WelcomePage />} />
                 <Route
                   path="/login"
                   element={

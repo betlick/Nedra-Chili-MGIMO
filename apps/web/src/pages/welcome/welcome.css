@@ -1,0 +1,208 @@
+/* Витрина: объёмная карта университета на фоне, текст по шагам при прокрутке */
+.wl {
+  position: relative;
+  min-height: 100dvh;
+}
+.wl-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+.wl-stage .cm-gl {
+  border-radius: 0;
+  background: transparent;
+}
+.wl-stage .cm-gl__canvas {
+  cursor: grab;
+}
+.wl-fail {
+  position: absolute;
+  inset: 40% 24px auto;
+  text-align: center;
+  color: var(--ink-3);
+}
+.wl-top {
+  position: fixed;
+  inset: 14px 14px auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-solid) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: var(--shadow), 0 0 0 1px var(--glass-edge);
+  max-width: 1240px;
+  margin-inline: auto;
+}
+.wl-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.wl-brand img {
+  border-radius: 10px;
+  object-fit: contain;
+}
+.wl-brand span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.wl-brand b {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+.wl-brand small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.wl-dots {
+  position: fixed;
+  inset-inline-end: 18px;
+  inset-block: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.wl-dots button {
+  pointer-events: auto;
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: none;
+}
+.wl-dots button::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  opacity: 0.45;
+  transition: opacity 0.2s ease, scale 0.2s ease, background-color 0.2s ease;
+}
+.wl-dots button[aria-current]::after {
+  background: var(--accent-solid);
+  box-shadow: 0 0 0 2px var(--ink);
+  opacity: 1;
+  scale: 1.25;
+}
+.wl-steps {
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+}
+.wl-step {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: 96px clamp(18px, 5vw, 72px);
+}
+.wl-card {
+  pointer-events: auto;
+  width: min(440px, 100%);
+  padding: 28px;
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: color-mix(in oklab, var(--surface-solid) 84%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: var(--shadow), 0 0 0 1px var(--glass-edge);
+}
+.wl-card h1,
+.wl-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+.wl-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.wl-text {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.wl-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.wl-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.wl-points li::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-solid);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.wl-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+.wl-foot {
+  margin: 0;
+  padding: 32px clamp(18px, 5vw, 72px) 40px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 13px;
+  pointer-events: auto;
+}
+@media (max-width: 759px) {
+  .wl-step {
+    align-items: flex-end;
+    padding: 96px 14px 18px;
+  }
+  .wl-card {
+    width: 100%;
+    padding: 20px;
+    gap: 10px;
+  }
+  .wl-dots {
+    inset-inline-end: 4px;
+  }
+  .wl-brand small {
+    display: none;
+  }
+}
+@media (hover: hover) {
+  .wl-dots button:hover::after {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wl-dots button::after {
+    transition: none;
+  }
+}
