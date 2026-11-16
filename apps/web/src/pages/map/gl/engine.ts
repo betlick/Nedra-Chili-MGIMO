@@ -3,7 +3,7 @@
 import {
   AmbientLight, BoxGeometry, Color, ConeGeometry, CylinderGeometry, DirectionalLight, EdgesGeometry, ExtrudeGeometry,
   Group, HemisphereLight, IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4,
-  Mesh, MeshLambertMaterial, Object3D, OrthographicCamera, PCFSoftShadowMap, Quaternion, Raycaster, Scene, Shape,
+  Mesh, MeshLambertMaterial, Object3D, OrthographicCamera, PCFShadowMap, Quaternion, Raycaster, Scene, Shape,
   BufferGeometry, Spherical, TubeGeometry, Vector2, Vector3, WebGLRenderer, CurvePath, LineCurve3,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
@@ -155,6 +155,11 @@ export class MapEngine {
   private raf = 0
   private dirty = true
   private last = 0
+  private baseRatio = 1
+  private ratio = 1
+  private slow = 0
+  private chain = false
+  private sharpT = 0
   private prevSel: string | null = null
   private down: { x: number; y: number; t: number; id: number } | null = null
   private hoverId: string | null = null
@@ -172,9 +177,11 @@ export class MapEngine {
     this.pinsEl = document.createElement('div')
     this.pinsEl.className = 'cm-pins'
     this.renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouchy() ? 1.5 : 2))
+    this.baseRatio = Math.min(window.devicePixelRatio || 1, isTouchy() ? 1.5 : 2)
+    this.ratio = this.baseRatio
+    this.renderer.setPixelRatio(this.ratio)
     this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = PCFSoftShadowMap
+    this.renderer.shadowMap.type = PCFShadowMap
     this.renderer.shadowMap.autoUpdate = false
     const cv = this.renderer.domElement
     cv.className = 'cm-gl__canvas'
@@ -239,6 +246,7 @@ export class MapEngine {
     this.request()
   }
   destroy() {
+    clearTimeout(this.sharpT)
     this.dead = true
     cancelAnimationFrame(this.raf)
     window.removeEventListener('scroll', this.onScroll)
@@ -898,8 +906,14 @@ export class MapEngine {
   private frame = (now: number) => {
     this.raf = 0
     if (this.dead) return
-    const dt = Math.min(0.05, this.last ? (now - this.last) / 1000 : 0.016)
+    const raw = this.last ? (now - this.last) / 1000 : 0.016
+    const dt = Math.min(0.05, raw)
     this.last = now
+    // слабая видеокарта: пока идёт движение и кадры долгие, временно снижаем разрешение
+    if (this.chain && raw > 0.028 && this.ratio > 1) {
+      if (++this.slow >= 3) { this.slow = 0; this.setRatio(Math.max(1, this.ratio - 0.25)) }
+    } else if (!this.chain || raw < 0.02) this.slow = 0
+    this.chain = false
     let busy = false
     // перелёт камеры
     if (this.tween) {
@@ -923,6 +937,7 @@ export class MapEngine {
     }
     // подсветка, подъём, рост
     const k = reduced() ? 1 : 1 - Math.exp(-dt * 14)
+    const kh = reduced() ? 1 : 1 - Math.exp(-dt * 45)
     for (const it of this.items.values()) {
       const gT = (now - it.t0) / 460
       const gr = reduced() ? 1 : easeOut(gT)
@@ -931,7 +946,7 @@ export class MapEngine {
       if (moving || Math.abs(it.hover - it.hoverT) > 0.004) {
         it.sel += (it.selT - it.sel) * k
         it.dim += (it.dimT - it.dim) * k
-        it.hover += (it.hoverT - it.hover) * k
+        it.hover += (it.hoverT - it.hover) * kh
         busy = true
         if (moving) this.shadowDirty = true
       } else { it.sel = it.selT; it.dim = it.dimT; it.hover = it.hoverT }
@@ -959,7 +974,19 @@ export class MapEngine {
       if (this.pinsDirty) { this.pinsDirty = false; this.placePins() }
     }
     this.dirty = false
-    if (busy) this.raf = requestAnimationFrame(this.frame)
+    if (busy) { clearTimeout(this.sharpT); this.chain = true; this.raf = requestAnimationFrame(this.frame) }
+    else if (this.ratio < this.baseRatio) {
+      // движение закончилось: возвращаем чёткость
+      clearTimeout(this.sharpT)
+      this.sharpT = window.setTimeout(() => { this.setRatio(this.baseRatio); this.request() }, 220)
+    }
+  }
+
+  private setRatio(r: number) {
+    this.ratio = r
+    this.renderer.setPixelRatio(r)
+    this.renderer.setSize(this.w, this.h, false)
+    this.dirty = true
   }
 
   private placePins() {
