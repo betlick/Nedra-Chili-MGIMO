@@ -274,23 +274,10 @@ export class MapEngine {
     this.applyProjection()
     this.request()
   }
-  private showcase = false
-  /** Витрина: сцена целиком на узком экране, без запаса под перетаскивание. */
-  setShowcase(on: boolean) {
-    this.showcase = on
-    this.fit = this.calcFit()
-    this.home.zoom = this.fit
-    this.controls.minZoom = this.fit * 0.55
-    this.controls.maxZoom = this.fit * 5
-    this.camera.zoom = this.fit
-    this.applyProjection()
-    this.request()
-  }
   private calcFit() {
     const R = Math.hypot(this.fitSize.w, this.fitSize.d) / 2
     const base = Math.max(2, Math.min(this.w / (2 * R * 1.0), this.h / (2 * R * 0.78)))
     // на узком экране сцену показываем крупнее экрана: края можно подвинуть двумя пальцами
-    if (this.showcase) return this.w < 560 ? base * 1.12 : base
     return this.w < 560 ? base * (this.state?.level === 'plan' ? 1.3 : 1.6) : base
   }
   private applyProjection() {
@@ -366,20 +353,6 @@ export class MapEngine {
     const bottom = Math.min(r.bottom, sheet.getBoundingClientRect().top)
     if (bottom - top < 120) return this.setInset(0)
     this.setInset(Math.max(0, Math.min(this.h * 0.45, r.top + r.height / 2 - (top + bottom) / 2)))
-  }
-  /** Кадр для витрины: перелёт к кампусу (или общий вид). k — во сколько раз ближе общего вида. */
-  tour(id: CampusId | null, o: { az?: number; k?: number; ms?: number; dx?: number } = {}) {
-    const h = this.home
-    let target = h.target
-    if (id) {
-      const c = CAMPUSES[id].plot
-      target = new Vector3(wx(c.x + c.w / 2), 0, (c.y + c.h / 2 - 320) * S)
-    }
-    const az = o.az ?? h.az
-    const zoom = this.fit * (o.k ?? (id ? 2.1 : 1))
-    // dx — на сколько пикселей сдвинуть картинку вправо (карточка слева закрывает часть)
-    if (o.dx) target = target.clone().add(new Vector3(-Math.cos(az), 0, Math.sin(az)).multiplyScalar(o.dx / zoom))
-    this.flyTo({ target, az, pol: h.pol, zoom }, o.ms ?? 1200)
   }
   /** Приближение к кампусу перед переходом на его карту. */
   dive(id: CampusId, done: () => void) {
