@@ -996,10 +996,9 @@ export class MapEngine {
       v.copy(p.pos).project(this.camera)
       let x = (v.x * 0.5 + 0.5) * w
       const y = (-v.y * 0.5 + 0.5) * h
-      if (p.el.classList.contains('cm-pin--tag')) {
-        const half = this.size(p).w / 2 + 8
-        x = Math.min(Math.max(x, half), w - half)
-      }
+      // подпись, которая видна лишь частично, сдвигаем внутрь кадра, чтобы текст не обрезался краем
+      const half = this.size(p).w / 2 + 6
+      if (x > -half && x < w + half) x = Math.min(Math.max(x, half), Math.max(half, w - half))
       p.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`
       p.el.style.zIndex = String(Math.round((1 - v.z) * 500) + (p.el.classList.contains('is-sel') ? 1000 : 0))
       p.sx = x

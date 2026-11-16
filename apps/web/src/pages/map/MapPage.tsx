@@ -126,7 +126,7 @@ function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId |
           </div>
           <p className="cm-hint cm-hint--desk">Тяните карту, чтобы повернуть. Ctrl и колесо мыши меняют масштаб</p>
         </div>
-        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
+        <p className="cm-hint cm-hint--touch">Вбок — повернуть, щипок — масштаб.</p>
         <Stage3D state={state} intro={zoomFrom ? { campus: zoomFrom } : 'in'} cbs={cbs}>
           {popC && !busy && (
             <div className="cm-pop" role="group" aria-labelledby="cm-popt">
@@ -387,7 +387,7 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
             <span className="cm-back-t">Вся территория</span>
           </button>
         </div>
-        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
+        <p className="cm-hint cm-hint--touch">Вбок — повернуть, щипок — масштаб.</p>
         <Stage3D state={sceneState} intro="in" cbs={cbs} wide={!!b} />
         <div className="cm-tools">
           <div className="cm-seg" role="group" aria-label="Схема кампуса или корпус">
