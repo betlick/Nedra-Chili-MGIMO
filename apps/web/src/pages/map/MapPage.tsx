@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Card, PageHeader, ThemeButton } from '../../components/ui'
 import { useUser } from '../../context/auth'
@@ -7,10 +7,10 @@ import {
   type BuildingId, type CampusId, type CatId, type Room,
 } from './data'
 import { MapIcon } from './MapIcon'
-import { SiteMap } from './SiteMap'
-import { PlanMap, layoutPlan } from './PlanMap'
-import { TerritoryMap } from './TerritoryMap'
-import { TERRITORY_VB, animateViewBox, ensureVisible, isPhone, plotVB, reducedMotion } from './helpers'
+import { EngineProvider, Stage3D } from './useEngine'
+import { useDive } from './engineCtx'
+import type { Callbacks, SceneState } from './gl/engine'
+import { isPhone, reducedMotion } from './helpers'
 import './map.css'
 
 type Say = (text: string) => void
@@ -25,13 +25,6 @@ function useMapRoute() {
   const floors = b ? BUILDINGS[b].floors : 1
   const f = b ? Math.min(floors, Math.max(1, Number(seg[2]) || 1)) : 1
   return { campus, b, f }
-}
-
-/* Прокручивает карту так, чтобы точка (cx в координатах схемы) оказалась по центру экрана. Нужно на телефоне: схема шире экрана. */
-function centerOn(scroll: HTMLElement | null, stage: HTMLElement | null, cx: number) {
-  if (!scroll || !stage || scroll.scrollWidth <= scroll.clientWidth + 2) return
-  const left = (cx / 1000) * stage.clientWidth - scroll.clientWidth / 2
-  scroll.scrollTo({ left: Math.max(0, left), behavior: reducedMotion() ? 'auto' : 'smooth' })
 }
 
 function Crumbs({ items }: { items: { label: string; onClick?: () => void }[] }) {
@@ -69,37 +62,27 @@ function Group({ title, children }: { title?: string; children: ReactNode }) {
 
 /* ═════════════════════════ ТЕРРИТОРИЯ ═════════════════════════ */
 function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId | null; onOpen: (id: CampusId) => void; onRoom: (r: Room) => void; say: Say }) {
+  const engine = useDive()
   const [sel, setSel] = useState<CampusId | null>(zoomFrom)
   const [q, setQ] = useState('')
   const [opening, setOpening] = useState<CampusId | null>(null)
-  const [zoomingOut, setZoomingOut] = useState(!!zoomFrom)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-  const svgRef = useRef<SVGSVGElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<HTMLDivElement>(null)
-  const popRef = useRef<HTMLDivElement>(null)
-  const busy = !!opening || zoomingOut
+  const busy = !!opening
 
-  const focusPlot = useCallback((id: CampusId) => {
-    svgRef.current?.querySelector<SVGGElement>(`[data-c="${id}"]`)?.focus({ preventScroll: true })
+  const focusPin = useCallback((id: CampusId, delay = 0) => {
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-k="campus:${id}"]`)?.focus({ preventScroll: true }), delay)
   }, [])
 
-  // обратно с кампуса: карта отъезжает от него к общему виду
-  useLayoutEffect(() => {
-    const svg = svgRef.current
-    if (!zoomFrom || !svg) return
-    return animateViewBox(svg, plotVB(CAMPUSES[zoomFrom]), TERRITORY_VB, 480, () => {
-      setZoomingOut(false)
-      focusPlot(zoomFrom)
-    })
-  }, [zoomFrom, focusPlot])
+  // обратно с кампуса: камера отъезжает к общему виду, фокус возвращается на кампус
+  useEffect(() => {
+    if (zoomFrom) focusPin(zoomFrom, reducedMotion() ? 0 : 700)
+  }, [zoomFrom, focusPin])
 
-  // в кампус: карта приближается к нему, потом открывается схема кампуса
-  useLayoutEffect(() => {
-    const svg = svgRef.current
-    if (!opening || !svg) return
-    return animateViewBox(svg, TERRITORY_VB, plotVB(CAMPUSES[opening]), 520, () => onOpen(opening))
-  }, [opening, onOpen])
+  // в кампус: камера приближается к нему, потом открывается схема кампуса
+  useEffect(() => {
+    if (!opening) return
+    if (!engine) return onOpen(opening)
+    engine.dive(opening, () => onOpen(opening))
+  }, [opening, engine, onOpen])
 
   const pick = (id: CampusId) => {
     if (busy) return
@@ -109,44 +92,8 @@ function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId |
     }
     setSel(id)
     say(`${CAMPUSES[id].name} выбран. Нажмите ещё раз или «Открыть карту кампуса».`)
-    focusPlot(id)
   }
   const clear = useCallback(() => setSel(null), [])
-
-  // карточка кампуса рядом с ним (на телефоне — нижняя шторка, CSS)
-  useLayoutEffect(() => {
-    const pop = popRef.current
-    const stage = stageRef.current
-    if (!sel || busy || !pop || !stage || !matchMedia('(min-width: 760px)').matches) return setPos(null)
-    const place = () => {
-      const c = CAMPUSES[sel]
-      const sw = stage.clientWidth, sh = stage.clientHeight, k = sw / 1000
-      const { x, y, w, h } = c.plot
-      const pw = pop.offsetWidth, ph = pop.offsetHeight, g = 14, m = 10
-      const below = (y + h) * k + g, above = y * k - g - ph
-      const fits = (t: number) => t >= m && t + ph <= sh - m
-      let top: number | null = c.pop === 'below' ? (fits(below) ? below : fits(above) ? above : null) : fits(above) ? above : fits(below) ? below : null
-      let cx = (x + w / 2) * k
-      if (top == null) {
-        top = Math.max(m, Math.min(sh - ph - m, (y + h / 2) * k - ph / 2))
-        cx = (x + w) * k + g + pw / 2
-        if (cx + pw / 2 > sw - m) cx = x * k - g - pw / 2
-      }
-      cx = Math.max(m + pw / 2, Math.min(sw - m - pw / 2, cx))
-      setPos({ left: cx - pw / 2, top })
-    }
-    place()
-    window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
-  }, [sel, busy])
-
-  // телефон: карта шире экрана, выбранный кампус подъезжает к центру
-  useEffect(() => {
-    if (!sel || !isPhone()) return
-    centerOn(scrollRef.current, stageRef.current, CAMPUSES[sel].plot.x + CAMPUSES[sel].plot.w / 2)
-    const t = window.setTimeout(() => ensureVisible(svgRef.current?.querySelector(`[data-c="${sel}"]`)), 60)
-    return () => window.clearTimeout(t)
-  }, [sel])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -155,11 +102,14 @@ function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId |
       if (t?.matches?.('input') && (t as HTMLInputElement).value) return
       const id = sel
       setSel(null)
-      focusPlot(id)
+      focusPin(id)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sel, busy, focusPlot])
+  }, [sel, busy, focusPin])
+
+  const state = useMemo<SceneState>(() => ({ level: 'territory', sel }), [sel])
+  const cbs: Callbacks = { campus: pick, building: () => undefined, marker: () => undefined, room: () => undefined, bg: clear }
 
   const nq = norm(q.trim())
   const camps = Object.values(CAMPUSES).filter((c) => nq && norm(`${c.name} ${c.addr}`).includes(nq))
@@ -174,28 +124,25 @@ function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId |
             <h2 id="cm-th" tabIndex={-1}>Территория</h2>
             <p className="cm-sub">Три кампуса, между ними ходит шаттл</p>
           </div>
-          <p className="cm-hint cm-hint--desk">Нажмите на кампус, затем «Открыть карту кампуса»</p>
+          <p className="cm-hint cm-hint--desk">Тяните карту, чтобы повернуть. Ctrl и колесо мыши меняют масштаб</p>
         </div>
-        <p className="cm-hint cm-hint--touch">Карту можно двигать пальцем влево и вправо.</p>
-        <div className="cm-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label="Карта территории, можно прокручивать">
-          <div className="cm-stage" ref={stageRef}>
-            <TerritoryMap svgRef={svgRef} sel={sel} onPick={pick} onBg={clear} />
-            {popC && !busy && (
-              <div ref={popRef} className="cm-pop" role="group" aria-labelledby="cm-popt" style={pos ? { left: pos.left, top: pos.top } : undefined}>
-                <button type="button" className="cm-btn cm-btn--icon cm-x" aria-label="Закрыть" onClick={() => { const id = popC.id; setSel(null); focusPlot(id) }}>
-                  <MapIcon name="x" size={16} sw={2} />
-                </button>
-                <div>
-                  <h3 id="cm-popt">{popC.name}</h3>
-                  <p className="cm-addr">{popC.addr}</p>
-                </div>
-                <p className="cm-mini">{plural(popC.bs.length, FORMS.building)}: {popC.bs.map((b) => `${b} — ${BUILDINGS[b].name}`).join(', ')}</p>
-                <p className="cm-hint">{popC.how}</p>
-                <button type="button" className="cm-btn cm-btn--primary" onClick={() => setOpening(popC.id)}>Открыть карту кампуса</button>
+        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
+        <Stage3D state={state} intro={zoomFrom ? { campus: zoomFrom } : 'in'} cbs={cbs}>
+          {popC && !busy && (
+            <div className="cm-pop" role="group" aria-labelledby="cm-popt">
+              <button type="button" className="cm-btn cm-btn--icon cm-x" aria-label="Закрыть" onClick={() => { const id = popC.id; setSel(null); focusPin(id) }}>
+                <MapIcon name="x" size={16} sw={2} />
+              </button>
+              <div>
+                <h3 id="cm-popt">{popC.name}</h3>
+                <p className="cm-addr">{popC.addr}</p>
               </div>
-            )}
-          </div>
-        </div>
+              <p className="cm-mini">{plural(popC.bs.length, FORMS.building)}: {popC.bs.map((b) => `${b} — ${BUILDINGS[b].name}`).join(', ')}</p>
+              <p className="cm-hint">{popC.how}</p>
+              <button type="button" className="cm-btn cm-btn--primary" onClick={() => setOpening(popC.id)}>Открыть карту кампуса</button>
+            </div>
+          )}
+        </Stage3D>
       </Card>
 
       <Card as="aside" className="cm-panel">
@@ -228,7 +175,7 @@ function TerritoryView({ zoomFrom, onOpen, onRoom, say }: { zoomFrom: CampusId |
                           if (sel === c.id) return setSel(null)
                           setSel(c.id)
                           say(`${c.name} выбран на карте`)
-                          if (isPhone()) stageRef.current?.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' })
+                          if (isPhone()) document.querySelector('.cm-stage')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
                         }}
                       >
                         На карте
@@ -286,9 +233,6 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<string | null>(initialSel)
   const [siteSel, setSiteSel] = useState<BuildingId | null>(initialSel ? ROOM[initialSel].b : null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<HTMLDivElement>(null)
   const filtering = cats.size > 0 || q.trim() !== ''
 
   const match = useCallback(
@@ -301,7 +245,7 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
     [cats, q],
   )
 
-  const focusNode = (selector: string) => requestAnimationFrame(() => mapRef.current?.querySelector<SVGGElement>(selector)?.focus({ preventScroll: true }))
+  const focusNode = (key: string) => window.setTimeout(() => document.querySelector<HTMLElement>(`[data-k="${key}"]`)?.focus({ preventScroll: true }), 60)
 
   const openBuilding = (id: BuildingId, cat?: CatId) => {
     let floor = 1
@@ -323,13 +267,13 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
     setSel(id)
     setSiteSel(r.b)
     if (r.b !== b || r.f !== f) go(r.b, r.f, !!b)
-    focusNode(`[data-id="${id}"]`)
+    focusNode(`room:${id}`)
   }
   const pickBuilding = (id: BuildingId) => {
     if (siteSel === id) return openBuilding(id)
     setSiteSel(id)
     say(`Корпус ${id} выбран. Нажмите ещё раз, чтобы открыть планы этажей.`)
-    focusNode(`[data-b="${id}"]`)
+    focusNode(`b:${id}`)
   }
   const toggleCat = (id: CatId) => setCats((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const reset = () => { setCats(new Set()); setQ('') }
@@ -341,33 +285,31 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
       const t = e.target as HTMLElement | null
       if (t?.matches?.('input') && (t as HTMLInputElement).value) return
       if (sel) setSel(null)
-      else if (b) { const id = b; toSite(); focusNode(`[data-b="${id}"]`) }
+      else if (b) { const id = b; toSite(); focusNode(`b:${id}`) }
       else if (siteSel) setSiteSel(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // телефон: схема шире экрана, выбранное подъезжает к центру и поднимается над шторкой
-  useEffect(() => {
-    if (!isPhone()) return
-    let target: string | null = null
-    if (b && sel) {
-      const slot = layoutPlan(b, f).find((s) => s.r.id === sel)
-      if (slot) centerOn(scrollRef.current, stageRef.current, slot.x + slot.w / 2)
-      target = `[data-id="${sel}"]`
-    } else if (!b && siteSel) {
-      const bx = BUILDINGS[siteSel].box
-      centerOn(scrollRef.current, stageRef.current, bx.x + bx.w / 2)
-      target = `[data-b="${siteSel}"]`
-    }
-    if (!target) return
-    const t = window.setTimeout(() => ensureVisible(mapRef.current?.querySelector(target!)), 60)
-    return () => window.clearTimeout(t)
-  }, [sel, siteSel, b, f])
-
   const chips = useMemo(() => CATS.map((c) => ({ c, n: ROOMS.filter((r) => r.cat === c.id && campus.bs.includes(r.b)).length })).filter((x) => x.n), [campus])
   const B = b ? BUILDINGS[b] : null
+
+  const matchIds = useMemo(
+    () => (filtering ? new Set(ROOMS.filter((r) => campus.bs.includes(r.b) && match(r)).map((r) => r.id)) : null),
+    [filtering, match, campus],
+  )
+  const sceneState = useMemo<SceneState>(
+    () => (b ? { level: 'plan', campus: campusId, b, f, sel, match: matchIds } : { level: 'campus', campus: campusId, sel: siteSel, match: matchIds }),
+    [b, f, campusId, sel, siteSel, matchIds],
+  )
+  const cbs: Callbacks = {
+    campus: () => undefined,
+    building: pickBuilding,
+    marker: openBuilding,
+    room: select,
+    bg: () => { if (b) setSel(null); else setSiteSel(null) },
+  }
 
   /* — список справа — */
   let list: ReactNode
@@ -462,18 +404,8 @@ function CampusView({ campusId, b, f, initialSel, go, up, say }: CampusProps) {
             </div>
           )}
         </div>
-        <p className="cm-hint cm-hint--touch">Карту можно двигать пальцем влево и вправо.</p>
-        <div className="cm-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label="Карта кампуса, можно прокручивать">
-          <div className="cm-stage cm-stage--campus" ref={stageRef}>
-            <div ref={mapRef} className="cm-fade" key={b ? `p-${b}-${f}` : 's'}>
-              {b ? (
-                <PlanMap b={b} f={f} sel={sel} filtering={filtering} match={match} onPick={select} />
-              ) : (
-                <SiteMap campus={campus} siteSel={siteSel} filtering={filtering} match={match} onBuilding={pickBuilding} onMarker={openBuilding} onBg={() => setSiteSel(null)} />
-              )}
-            </div>
-          </div>
-        </div>
+        <p className="cm-hint cm-hint--touch">Проведите по карте вбок, чтобы повернуть. Щипок меняет масштаб.</p>
+        <Stage3D state={sceneState} intro="in" cbs={cbs} wide={!!b} />
         {sb && (
           <div className="cm-bar">
             <p>Корпус {sb.id}, {sb.name}<small>{plural(sb.floors, FORMS.floor)}: {sb.desc.toLowerCase()}</small></p>
@@ -558,6 +490,7 @@ export const MapPage = memo(function MapPage() {
   if (campus && b) crumbs.push({ label: `Корпус ${b}, ${f} этаж`, onClick: undefined })
 
   return (
+    <EngineProvider>
     <div className="cm-root">
       <PageHeader eyebrow="МУКПиД · кампусы и корпуса" title="Карта университета" actions={<ThemeButton />} />
       <Crumbs items={crumbs} />
@@ -571,5 +504,6 @@ export const MapPage = memo(function MapPage() {
       </div>
       <p className="cm-foot">Схема вымышленная. МУКПиД — учебный концепт: кампусы, аудитории, часы работы и вместимость придуманы.</p>
     </div>
+    </EngineProvider>
   )
 })

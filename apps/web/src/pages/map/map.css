@@ -354,177 +354,409 @@
   animation: cm-rise 0.3s var(--ease-out) both;
 }
 
-/* ── карта ── */
-.cm-scroll {
-  overflow: auto;
-  border-radius: 20px;
-  background: var(--cm-ground);
-  overscroll-behavior-x: contain;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent);
-}
-.cm-stage {
-  position: relative;
-  min-width: 600px;
-}
-.cm-stage--campus {
-  min-width: 620px;
-}
-/* на телефоне схема шире экрана и листается пальцем: подписи остаются читаемыми */
-@media (max-width: 759px) {
-  .cm-stage {
-    min-width: 780px;
-  }
-  .cm-stage--campus {
-    min-width: 800px;
-  }
-}
-.cm-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.cm-svg .lbl {
-  font-family: var(--font-body);
-  fill: var(--ink);
-  pointer-events: none;
-}
-.cm-svg .ttl {
-  font-family: var(--font-display);
-  font-weight: 600;
-  fill: var(--ink);
-  pointer-events: none;
-}
-.cm-svg .muted {
-  fill: var(--ink-3);
-}
-.cm-svg g[role='button'] {
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  outline: none;
-}
-.cm-svg g[role='button']:focus-visible .cm-ring {
-  stroke: var(--ink);
-  stroke-width: 4;
-}
-.cm-ring {
-  transition: stroke 0.15s ease-out, stroke-width 0.15s ease-out, fill 0.2s ease-out;
-}
-.cm-shadow {
-  filter: url(#cm-tsh);
-}
-.cm-bld .cm-shadow {
-  filter: url(#cm-sh);
-}
-/* во время приближения тени отключаем: кадры дешевле, глазом не видно */
-.cm-svg.is-zooming .cm-shadow {
-  filter: none;
-}
-.is-soft {
-  opacity: 0.62;
-}
-.is-dim {
-  opacity: 0.22;
-}
-.cm-plot,
-.cm-bld-wrap,
-.cm-mark,
-.cm-room {
-  transition: opacity 0.2s ease-out;
-}
-.cm-plot__lift,
-.cm-bld__lift {
-  transition: transform 0.28s var(--ease-out);
-}
-.cm-plot[aria-pressed='true'] .cm-plot__lift,
-.cm-bld[aria-pressed='true'] .cm-bld__lift {
-  transform: translateY(-4px);
-}
-.cm-fade {
-  animation: cm-fade 0.24s ease-out;
-}
-@keyframes cm-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-/* появление слоёв схемы */
-.cm-plot {
-  animation: cm-rise 0.5s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
-}
-[data-return] .cm-plot {
-  animation: none;
-}
-.cm-bld-wrap {
-  animation: cm-rise 0.45s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
-}
-.cm-mark__pop {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cm-pop 0.38s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms + 180ms);
-  transition: scale 0.18s ease-out;
-}
-.cm-room__in {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cm-room-in 0.34s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 14ms);
-}
 @keyframes cm-rise {
   from {
     opacity: 0;
     transform: translateY(12px);
   }
 }
+
 @keyframes cm-pop {
   from {
     opacity: 0;
     transform: scale(0.6);
   }
 }
-@keyframes cm-room-in {
+
+
+/* ═════ 3D-сцена ═════ */
+.cm-stage {
+  position: relative;
+  height: clamp(440px, 64vh, 700px);
+  scroll-margin-top: 96px;
+}
+.cm-stage--wide {
+  height: clamp(440px, 62vh, 660px);
+}
+.cm-gl {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--cm-ground);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink) 6%, transparent);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cm-gl__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+}
+.cm-gl.is-drag .cm-gl__canvas {
+  cursor: grabbing;
+}
+.cm-gl--in .cm-gl__canvas {
+  animation: cm-gl-in 0.5s var(--ease-out) both;
+}
+@keyframes cm-gl-in {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(6px);
   }
 }
-/* маршрут «рисуется» от входа к двери */
-.cm-route__line {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
-  animation: cm-draw 0.75s 0.1s var(--ease-out) both;
+.cm-pins {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
-.cm-route__end {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cm-pop 0.3s 0.75s var(--ease-out) both;
+
+/* подписи поверх сцены: настоящие кнопки, поэтому работают с клавиатуры и читаются скринридером */
+.cm-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 700 12.5px/1 var(--font-body);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: cm-pin-in 0.4s var(--d, 0ms) var(--ease-out) both;
+  transition: opacity 0.2s var(--ease-out);
 }
-@keyframes cm-draw {
+@keyframes cm-pin-in {
   from {
-    stroke-dashoffset: 1.02;
+    opacity: 0;
+    scale: 0.7;
   }
 }
-.cm-fountain {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cm-ripple 3.6s ease-in-out infinite;
+button.cm-pin {
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-@keyframes cm-ripple {
-  50% {
-    transform: scale(1.35);
-    opacity: 0.35;
+.cm-pin.is-dim {
+  opacity: 0.32;
+}
+.cm-pin svg {
+  display: block;
+  flex: none;
+}
+.cm-pin:focus-visible {
+  outline: 2.5px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+/* плашка кампуса */
+.cm-pin--tag span {
+  display: block;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1.5px solid var(--line-solid);
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--ink) 16%, transparent);
+  font: 600 12.5px/1 var(--font-display);
+  transition: background-color 0.2s var(--ease-out), border-color 0.2s var(--ease-out), scale 0.2s var(--ease-out);
+}
+.cm-pin--tag.is-sel span {
+  background: var(--hl);
+  color: var(--on-hl);
+  border-color: var(--ink);
+}
+.cm-pin--letter i,
+.cm-pin--bld i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--hl);
+  color: var(--on-hl);
+  border: 1.5px solid var(--ink);
+  font: 600 11px/1 var(--font-display);
+  font-style: normal;
+}
+/* корпус на схеме кампуса */
+.cm-pin--bld {
+  gap: 0;
+  padding: 4px 14px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-solid);
+  border: 1.5px solid var(--line-solid);
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--ink) 16%, transparent);
+  transition: background-color 0.2s var(--ease-out), border-color 0.2s var(--ease-out), scale 0.2s var(--ease-out);
+}
+.cm-pin--bld i {
+  width: 26px;
+  height: 26px;
+  margin-right: 8px;
+  font-size: 12px;
+}
+.cm-pin--bld b {
+  font: 600 12.5px/1 var(--font-display);
+}
+.cm-pin--bld.is-sel {
+  background: var(--hl);
+  color: var(--on-hl);
+  border-color: var(--ink);
+}
+.cm-pin--bld.is-sel i {
+  background: var(--on-hl);
+  color: var(--hl);
+}
+/* метки категорий на крышах */
+.cm-pin--mark {
+  width: 26px;
+  height: 26px;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--c) 26%, var(--surface-solid));
+  border: 2px solid var(--c);
+  box-shadow: 0 4px 10px color-mix(in oklab, var(--ink) 16%, transparent);
+  transition: opacity 0.2s var(--ease-out), scale 0.2s var(--ease-out);
+}
+.cm-pin--mark em {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 800 9.5px/1 var(--font-body);
+  font-style: normal;
+}
+/* комнаты на плане */
+.cm-pin--room {
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity 0.2s var(--ease-out), scale 0.2s var(--ease-out);
+}
+.cm-pin__ic {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--c) 24%, var(--surface-solid));
+  border: 2px solid var(--c);
+  box-shadow: 0 4px 10px color-mix(in oklab, var(--ink) 16%, transparent);
+  transition: background-color 0.2s var(--ease-out);
+}
+.cm-pin--room b {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-solid) 88%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-pin--room em {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 9px 13px;
+  border-radius: 999px;
+  background: var(--hl);
+  color: var(--on-hl);
+  border: 1.5px solid var(--ink);
+  box-shadow: 0 8px 20px color-mix(in oklab, var(--ink) 22%, transparent);
+  font: 600 12px/1 var(--font-display);
+  font-style: normal;
+}
+.cm-pin--room.is-sel em {
+  display: block;
+  animation: cm-pop 0.3s var(--ease-out) both;
+}
+.cm-pin--room.is-sel .cm-pin__ic {
+  background: var(--hl);
+  color: var(--on-hl);
+  border-color: var(--ink);
+}
+.cm-pin--util {
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface-solid) 80%, transparent);
+  color: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+/* ориентиры */
+.cm-pin--text {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-shadow: 0 0 6px var(--cm-ground), 0 0 3px var(--cm-ground);
+}
+.cm-pin--poi {
+  gap: 6px;
+  padding: 5px 10px 5px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-solid) 88%, transparent);
+  border: 1.5px solid var(--line-solid);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.cm-pin--metro i,
+.cm-pin--bus {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font: 600 12px/1 var(--font-display);
+  font-style: normal;
+}
+.cm-pin--bus {
+  background: var(--hl);
+  color: var(--on-hl);
+  border: 1.5px solid var(--ink);
+  width: 24px;
+  height: 24px;
+}
+.cm-pin--metro span {
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 0 6px var(--cm-ground), 0 0 3px var(--cm-ground);
+}
+@media (hover: hover) {
+  .cm-pin--tag:hover span,
+  .cm-pin--bld:not(.is-sel):hover {
+    border-color: var(--ink);
+  }
+  button.cm-pin:hover {
+    scale: 1.07;
+  }
+}
+button.cm-pin:active {
+  scale: 0.96;
+}
+
+/* телефон: вертикальный свайп прокручивает страницу, горизонтальный вращает карту, щипок меняет масштаб */
+@media (pointer: coarse) {
+  .cm-gl,
+  .cm-gl__canvas {
+    touch-action: pan-y;
+  }
+}
+@media (max-width: 759px) {
+  .cm-pin--room.is-named b {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .cm-pin--mark {
+    width: 30px;
+    height: 30px;
   }
 }
 
+/* кнопки вида */
+.cm-ctl {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-solid) 92%, transparent);
+  border: 1px solid var(--line-solid);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--ink) 14%, transparent);
+}
+.cm-ctl__b {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s var(--ease-out), scale 0.15s var(--ease-out);
+}
+.cm-ctl__b:active {
+  scale: 0.94;
+}
+@media (hover: hover) {
+  .cm-ctl__b:hover {
+    background: var(--surface-2);
+  }
+}
+@media (max-width: 759px) {
+  .cm-ctl__b {
+    width: 44px;
+    height: 44px;
+  }
+  /* на телефоне вращает один палец, кнопки поворота не нужны */
+  .cm-ctl__b[data-rot] {
+    display: none;
+  }
+}
+
+/* загрузка и запасной вариант */
+.cm-skel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--cm-ground);
+  color: var(--ink-2);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+}
+.cm-skel__bar {
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--line-solid) 0 30%, var(--ink-3) 50%, var(--line-solid) 70% 100%) 0 0 / 300% 100%;
+  animation: cm-shimmer 1.1s linear infinite;
+}
+@keyframes cm-shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
 /* ── карточка кампуса над картой ── */
 .cm-pop {
   position: absolute;
-  z-index: 3;
+  left: 14px;
+  bottom: 14px;
+  z-index: 6;
   width: 300px;
   padding: 18px;
   border-radius: 24px;
@@ -934,10 +1166,6 @@
     margin-top: 6px;
     font-size: 26px;
   }
-  .cm-scroll {
-    border-radius: 16px;
-    scroll-behavior: auto;
-  }
   .cm-tools {
     margin-inline: 2px;
   }
@@ -1008,13 +1236,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cm-view,
-  .cm-fade,
-  .cm-plot,
-  .cm-bld-wrap,
-  .cm-mark__pop,
-  .cm-room__in,
-  .cm-route__line,
-  .cm-route__end,
+  .cm-gl--in .cm-gl__canvas,
+  .cm-pin,
+  .cm-skel__bar,
   .cm-ccard,
   .cm-bar,
   .cm-pop,
@@ -1022,13 +1246,8 @@
   .cm-seg--floors {
     animation: none !important;
   }
-  .cm-fountain {
-    animation: none;
-  }
-  .cm-plot__lift,
-  .cm-bld__lift,
-  .cm-ring,
-  .cm-mark__pop {
+  .cm-pin,
+  .cm-ctl__b {
     transition: none;
   }
 }
