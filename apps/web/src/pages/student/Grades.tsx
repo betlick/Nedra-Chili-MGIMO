@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
-import { average, gradeLabel, markFor, pluralize } from '../../lib/format'
+import { average, gradeLabel } from '../../lib/format'
+import { GradeForecast } from './GradeForecast'
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -11,8 +12,6 @@ export function GradesPage() {
   const navigate = useNavigate()
   const { forMe } = useMaterials()
   const [selectedTerm,setTerm]=useState('')
-  const [goal,setGoal]=useState<'3'|'4'|'5'>('5')
-  const [forecast,setForecast]=useState<Record<string,string>>({})
   const semesters=[...new Set(grades.map(g=>g.semester))].sort((a,b)=>b-a)
   const term=selectedTerm||String(semesters[0]??1)
   const all=grades.filter(g=>String(g.semester)===term)
@@ -29,23 +28,10 @@ export function GradesPage() {
     )
   }
   const avg = average(list.map((d) => d.score))
-  const admitted = list.filter((d) => d.score >= 50).length
+  const passed = list.filter((d) => d.score >= 40).length
   const exams = all.filter((d) => d.form === 'Экзамен').length
   const credits = all.length - exams
-  // порог баллов для оценки: шкала из markFor (50 / 70 / 85); для зачёта цель всегда 50
-  const THRESHOLD = { '3': 50, '4': 70, '5': 85 } as const
-  const toGoal = list.map((d) => {
-    const need = (d.form === 'Зачёт' ? 50 : THRESHOLD[goal]) - d.score
-    return { d, need: Math.max(0, need) }
-  })
   const weakest = [...list].sort((a, b) => a.score - b.score)[0]
-  const predicted = all.map(g => {
-    const entered = forecast[g.id]
-    const score = entered === undefined || entered === '' ? g.score : Number(entered)
-    return { ...g, score }
-  })
-  const forecastScores = predicted.filter((g):g is typeof g & {score:number} => g.score !== null)
-  const forecastAverage = average(forecastScores.map(g => g.score))
 
   return (
     <>
@@ -116,15 +102,15 @@ export function GradesPage() {
               <Ring value={avg} size={136} stroke={13} onAccent />
               <div>
                 <h2 className="card__title card__title--lg">Средний балл</h2>
-                <p className="small on-accent-2">Для допуска к сессии нужно не менее 50 баллов по каждой дисциплине.</p>
+                <p className="small on-accent-2">Проходной итоговый результат — 40 баллов. Условия допуска к экзамену уточняются отдельно.</p>
               </div>
             </div>
             <div className="tiles">
               <div className="tile">
                 <b className="display tile__value tile__value--hl">
-                  {admitted}/{all.length}
+                  {passed}/{all.length}
                 </b>
-                <span>допуск</span>
+                <span>проходной результат</span>
               </div>
               <div className="tile">
                 <b className="display tile__value">{exams}</b>
@@ -140,57 +126,11 @@ export function GradesPage() {
           {weakest && <section className="card card--hl">
             <h2 className="card__title card__title--lg">Обратите внимание</h2>
             <p>
-              «{weakest.name}» — {weakest.score} баллов: {weakest.score >= 50 ? (weakest.form === 'Зачёт' ? 'зачёт есть' : 'допуск есть') : 'допуска пока нет'}, но это самый низкий результат семестра.
+              «{weakest.name}» — {weakest.score} баллов: {weakest.score >= 40 ? (weakest.form === 'Зачёт' ? 'зачёт есть' : 'проходной результат есть') : 'пока ниже проходного порога'}, это самый низкий результат семестра.
             </p>
           </section>}
 
-          {list.length > 0 && (
-            <section className="card goal">
-              <div className="card__head">
-                <h2 className="card__title card__title--lg">Сколько баллов до цели</h2>
-                <Segmented
-                  label="Цель по экзаменам"
-                  value={goal}
-                  onChange={setGoal}
-                  options={[{ value: '3', label: '3' }, { value: '4', label: '4' }, { value: '5', label: '5' }]}
-                />
-              </div>
-              <ul className="goal__list">
-                {toGoal.map(({ d, need }) => (
-                  <li key={d.id} className={need === 0 ? 'is-done' : ''}>
-                    <span>
-                      {d.form === 'Зачёт' ? 'Зачёт' : `До ${goal}`} по «{d.name}»
-                      {d.form === 'Экзамен' && markFor(d.score) > Number(goal) ? ` (сейчас ${markFor(d.score)})` : ''}
-                    </span>
-                    <b>{need === 0 ? 'Уже есть' : `не хватает ${need} ${pluralize(need, 'балла', 'баллов', 'баллов')}`}</b>
-                  </li>
-                ))}
-              </ul>
-              <p className="small muted">Считаем по текущим баллам: шкала 50 — «3», 70 — «4», 85 — «5». Для зачёта достаточно 50.</p>
-            </section>
-          )}
-
-          {all.length > 0 && <section className="card">
-            <h2 className="card__title card__title--lg">Калькулятор оценок</h2>
-            <p className="small muted">Введите предполагаемый итоговый балл от 0 до 100. Пустое поле оставляет текущий результат. Расчёт виден только вам и не меняет ведомость.</p>
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Дисциплина</th><th>Сейчас</th><th>Предположим</th><th>Результат</th></tr></thead>
-                <tbody>{predicted.map(g => <tr key={g.id}>
-                  <td>{g.name}</td>
-                  <td>{all.find(d => d.id === g.id)?.score ?? '—'}</td>
-                  <td><input aria-label={`Предполагаемый балл по ${g.name}`} type="number" min={0} max={100} step={1} value={forecast[g.id] ?? ''} onChange={e => {
-                    const value = e.target.value
-                    if (value !== '' && (!/^\d{1,3}$/.test(value) || Number(value) > 100)) return
-                    setForecast(prev => ({ ...prev, [g.id]: value }))
-                  }} style={{ width: '6rem' }} placeholder="0–100" /></td>
-                  <td>{g.score === null ? 'Пока нет балла' : gradeLabel(g.score, g.form)}</td>
-                </tr>)}</tbody>
-              </table>
-            </div>
-            <p>Если так: средний балл <b>{forecastAverage}</b>, допуск по <b>{forecastScores.filter(g => g.score >= 50).length}/{all.length}</b> дисциплинам.</p>
-            <Button variant="surface" onClick={() => setForecast({})}>Сбросить расчёт</Button>
-          </section>}
+          {all.length > 0 && <GradeForecast grades={all} />}
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

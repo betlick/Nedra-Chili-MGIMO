@@ -115,7 +115,7 @@ export const staffApi = {
 }
 
 export interface ApiAssignment { id:string; teacherId:string; subjectId:string; groupId:string; subject:string; group:string; teacher:string; semester:number; form:'Экзамен'|'Зачёт'; deadline:string|null; version:number }
-export interface ApiGrade {id:string;name:string;form:'Экзамен'|'Зачёт';semester:number;score:number|null}
+export interface ApiGrade {id:string;name:string;form:'Экзамен'|'Зачёт';semester:number;score:number|null;lessonCounts?:{lectures:number;lecturesUpcoming:number;practices:number;practicesUpcoming:number}}
 export interface ApiDeadline {id:string;assignmentId:string;title:string;dueAt:string;subject:string;group:string}
 export interface ApiAnnouncement {id:string;groupId:string|null;groupName:string|null;title:string;body:string;cover:string|null;createdAt:string}
 export interface ApiSheet extends ApiAssignment { students:{id:string;name:string;score:number|null}[] }

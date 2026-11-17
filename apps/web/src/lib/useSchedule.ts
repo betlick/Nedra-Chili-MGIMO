@@ -13,7 +13,7 @@ export function useSchedule(from: string, to: string) {
         setLoading(true);
         setLessons([]);
         dataApi.schedule(new Date(from + 'T00:00:00+03:00'), new Date(to + 'T00:00:00+03:00')).then(rows => { if (!live)
-            return; setLessons(rows.map(r => ({ id: r.id, date: moscowYmd(new Date(r.startsAt)), day: (new Date(moscowYmd(new Date(r.startsAt)) + 'T12:00').getDay() + 6) % 7, start: moscowTime(new Date(r.startsAt)), end: moscowTime(new Date(r.endsAt)), subject: r.subject, kind: ({ lecture: 'Лекция', seminar: 'Семинар', practice: 'Практика' } as const)[r.kind], room: r.room, teacher: r.teacherName, group: r.groupName, status: r.cancelled ? 'cancelled' : r.changeNote ? 'moved' : undefined, movedFrom: r.changeNote ?? undefined }))); setError(null); }).catch(e => { if (live)
+            return; setLessons(rows.map(r => ({ id: r.id, date: moscowYmd(new Date(r.startsAt)), day: (new Date(moscowYmd(new Date(r.startsAt)) + 'T12:00').getDay() + 6) % 7, start: moscowTime(new Date(r.startsAt)), end: moscowTime(new Date(r.endsAt)), subject: r.subject, kind: r.kind === 'lecture' ? 'Лекция' : 'Практика', room: r.room, teacher: r.teacherName, group: r.groupName, status: r.cancelled ? 'cancelled' : r.changeNote ? 'moved' : undefined, movedFrom: r.changeNote ?? undefined }))); setError(null); }).catch(e => { if (live)
             setError(e.message); }).finally(() => { if (live)
             setLoading(false); });
         return () => { live = false; };

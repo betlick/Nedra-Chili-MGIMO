@@ -17,7 +17,7 @@ export interface User {
   title: string // «Студентка · группа ИМО-21»
 }
 
-export type LessonKind = 'Лекция' | 'Семинар' | 'Практика'
+export type LessonKind = 'Лекция' | 'Практика'
 
 export interface Lesson {
   id: string

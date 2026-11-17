@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { actor, assignmentAccess, assignmentFilter, assignmentsQuery, bodyObject, fail, studentsOf, textValue, uuid, type Authorize, type Db } from './domain.js';
-import { gradeEntries, groups, inquiries, inquiryReplies, notifications, teachingAssignments, users } from './schema.js';
+import { gradeEntries, groups, inquiries, inquiryReplies, lessons, notifications, teachingAssignments, users } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
 export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
     app.get('/api/gradebook/groups', async (req, reply) => {
@@ -66,7 +66,20 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, pu
             fail(403, 'Раздел доступен студенту');
         const assignments = await assignmentsQuery(db).where(assignmentFilter(u));
         const entries = await db.select().from(gradeEntries).where(eq(gradeEntries.studentId, id));
-        return { data: assignments.map(a => ({ id: a.id, name: a.subject, form: a.form, semester: a.semester, score: entries.find(e => e.assignmentId === a.id)?.score ?? null })) };
+        const scheduled = await db.select({ subjectId: lessons.subjectId, kind: lessons.kind, startsAt: lessons.startsAt })
+            .from(lessons).where(and(eq(lessons.groupId, u.groupId!), eq(lessons.cancelled, false)));
+        const now = new Date();
+        return { data: assignments.map(a => {
+            const rows = scheduled.filter(l => l.subjectId === a.subjectId);
+            return { id: a.id, name: a.subject, form: a.form, semester: a.semester,
+                score: entries.find(e => e.assignmentId === a.id)?.score ?? null,
+                lessonCounts: {
+                    lectures: rows.filter(l => l.kind === 'lecture').length,
+                    lecturesUpcoming: rows.filter(l => l.kind === 'lecture' && l.startsAt > now).length,
+                    practices: rows.filter(l => l.kind !== 'lecture').length,
+                    practicesUpcoming: rows.filter(l => l.kind !== 'lecture' && l.startsAt > now).length,
+                } };
+        }) };
     });
     app.get('/api/inquiries/teachers', async (req, reply) => {
         const id = await auth(req, reply);

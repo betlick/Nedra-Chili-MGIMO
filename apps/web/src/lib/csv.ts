@@ -85,7 +85,7 @@ function parseKind(s: string): ApiLessonKind | null {
   const v = s.toLowerCase()
   if (!v) return 'lecture'
   if (/^(лек|lect)/.test(v)) return 'lecture'
-  if (/^(сем|semi)/.test(v)) return 'seminar'
+  if (/^(сем|semi)/.test(v)) return 'practice'
   if (/^(прак|prac)/.test(v)) return 'practice'
   return null
 }
@@ -114,7 +114,7 @@ export function toLessons(rows: string[][]): { lessons: CsvLesson[]; header: boo
       : to <= from ? 'конец раньше начала'
       : !subject ? 'не указан предмет'
       : subject.length > 120 ? 'предмет длиннее 120 символов'
-      : !kind ? 'вид: лекция, семинар или практика'
+      : !kind ? 'вид: лекция или практика (семинар тоже считается практикой)'
       : !teacherName ? 'не указан преподаватель'
       : !room ? 'не указана аудитория'
       : teacherName.length > 120 || room.length > 40 || changeNote.length > 300 ? 'слишком длинное значение'
