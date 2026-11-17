@@ -122,6 +122,38 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
         publishPush(push, pushed, app.log);
         return reply.code(201).send({ data: row });
     });
+    app.post<{ Params: { id: string } }>('/api/staff/groups/:id/lessons/import', { bodyLimit: 1_000_000 }, async (req, reply) => {
+        if (!await staff(req, reply)) return;
+        const groupId = uuid(req.params.id), body = bodyObject(req.body);
+        if (Object.keys(body).some(k => k !== 'lessons') || !Array.isArray(body.lessons) || body.lessons.length < 1 || body.lessons.length > 500)
+            fail(400, 'Импорт: от 1 до 500 занятий');
+        const allowed = ['subject', 'kind', 'teacherId', 'teacherName', 'room', 'startsAt', 'endsAt', 'changeNote'];
+        const rows = body.lessons.map((entry, index) => {
+            const row = bodyObject(entry);
+            if (Object.keys(row).some(k => !allowed.includes(k))) fail(400, `Строка ${index + 1}: неверные поля занятия`);
+            return row;
+        });
+        const pushed: PushNotice[] = [];
+        await db.transaction(async tx => {
+            await tx.execute(sql `select pg_advisory_xact_lock(746001)`);
+            const [group] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, groupId));
+            if (!group) fail(404, 'Группа не найдена');
+            for (const [index, row] of rows.entries()) {
+                try {
+                    const lesson = await values(tx, row);
+                    await checkOverlap(tx, groupId, lesson);
+                    await tx.insert(lessons).values({ ...lesson, groupId });
+                } catch (error) {
+                    if (error && typeof error === 'object' && 'statusCode' in error && typeof error.statusCode === 'number')
+                        fail(error.statusCode, `Строка ${index + 1}: ${error instanceof Error ? error.message : 'ошибка занятия'}`);
+                    throw error;
+                }
+            }
+            await notify(tx, groupId, 'Расписание изменено', 'Загружены занятия из CSV. Откройте расписание группы.', pushed);
+        });
+        publishPush(push, pushed, app.log);
+        return reply.code(201).send({ data: { added: rows.length } });
+    });
     app.patch<{
         Params: {
             id: string;

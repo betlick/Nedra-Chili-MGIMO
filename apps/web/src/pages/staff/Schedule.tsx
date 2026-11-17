@@ -197,10 +197,17 @@ function LessonDialog({ draft, sources, onClose, onSave }: { draft: Draft; sourc
           <label className="field"><span className="field__label">Начало</span><input className="input" type="time" value={d.from} onChange={(e) => set('from', e.target.value)} /></label>
           <label className="field"><span className="field__label">Конец</span><input className="input" type="time" value={d.to} onChange={(e) => set('to', e.target.value)} /></label>
         </div>
-        <div className="dialog__grid dialog__grid--2">
-          <label className="field">Преподаватель<select className="input" value={d.teacherId} onChange={e=>setD(x=>({...x,teacherId:e.target.value,teacherName:sources.teachers.find(t=>t.id===e.target.value)?.name??''}))}><option value="">Выберите преподавателя</option>{sources.teachers.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <Combo label="Аудитория" value={d.room} maxLength={40} placeholder="ауд. 305" options={sources.rooms.map((v) => ({ value: v }))} onChange={(v) => set('room', v)} />
-        </div>
+        <section className="field" aria-label="Преподаватель занятия">
+          <label className="field">
+            <span className="field__label">Преподаватель занятия</span>
+            <select className="input" required value={d.teacherId} onChange={e=>setD(x=>({...x,teacherId:e.target.value,teacherName:sources.teachers.find(t=>t.id===e.target.value)?.name??''}))}>
+              <option value="">Выберите преподавателя</option>
+              {sources.teachers.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <p className="small muted">Выбранный преподаватель увидит занятие в своём расписании.</p>
+        </section>
+        <Combo label="Аудитория" value={d.room} maxLength={40} placeholder="ауд. 305" options={sources.rooms.map((v) => ({ value: v }))} onChange={(v) => set('room', v)} />
         <label className="field">
           <span className="field__label">Пометка для студентов (необязательно)</span>
           <input className="input" value={d.changeNote} maxLength={300} placeholder="Например: перенос с 09:00" onChange={(e) => set('changeNote', e.target.value)} />

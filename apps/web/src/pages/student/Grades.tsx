@@ -12,6 +12,7 @@ export function GradesPage() {
   const { forMe } = useMaterials()
   const [selectedTerm,setTerm]=useState('')
   const [goal,setGoal]=useState<'3'|'4'|'5'>('5')
+  const [forecast,setForecast]=useState<Record<string,string>>({})
   const semesters=[...new Set(grades.map(g=>g.semester))].sort((a,b)=>b-a)
   const term=selectedTerm||String(semesters[0]??1)
   const all=grades.filter(g=>String(g.semester)===term)
@@ -38,6 +39,13 @@ export function GradesPage() {
     return { d, need: Math.max(0, need) }
   })
   const weakest = [...list].sort((a, b) => a.score - b.score)[0]
+  const predicted = all.map(g => {
+    const entered = forecast[g.id]
+    const score = entered === undefined || entered === '' ? g.score : Number(entered)
+    return { ...g, score }
+  })
+  const forecastScores = predicted.filter((g):g is typeof g & {score:number} => g.score !== null)
+  const forecastAverage = average(forecastScores.map(g => g.score))
 
   return (
     <>
@@ -161,6 +169,28 @@ export function GradesPage() {
               <p className="small muted">Считаем по текущим баллам: шкала 50 — «3», 70 — «4», 85 — «5». Для зачёта достаточно 50.</p>
             </section>
           )}
+
+          {all.length > 0 && <section className="card">
+            <h2 className="card__title card__title--lg">Калькулятор оценок</h2>
+            <p className="small muted">Введите предполагаемый итоговый балл от 0 до 100. Пустое поле оставляет текущий результат. Расчёт виден только вам и не меняет ведомость.</p>
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Дисциплина</th><th>Сейчас</th><th>Предположим</th><th>Результат</th></tr></thead>
+                <tbody>{predicted.map(g => <tr key={g.id}>
+                  <td>{g.name}</td>
+                  <td>{all.find(d => d.id === g.id)?.score ?? '—'}</td>
+                  <td><input aria-label={`Предполагаемый балл по ${g.name}`} type="number" min={0} max={100} step={1} value={forecast[g.id] ?? ''} onChange={e => {
+                    const value = e.target.value
+                    if (value !== '' && (!/^\d{1,3}$/.test(value) || Number(value) > 100)) return
+                    setForecast(prev => ({ ...prev, [g.id]: value }))
+                  }} style={{ width: '6rem' }} placeholder="0–100" /></td>
+                  <td>{g.score === null ? 'Пока нет балла' : gradeLabel(g.score, g.form)}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <p>Если так: средний балл <b>{forecastAverage}</b>, допуск по <b>{forecastScores.filter(g => g.score >= 50).length}/{all.length}</b> дисциплинам.</p>
+            <Button variant="surface" onClick={() => setForecast({})}>Сбросить расчёт</Button>
+          </section>}
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

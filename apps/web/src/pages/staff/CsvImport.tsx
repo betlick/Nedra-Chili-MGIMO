@@ -9,20 +9,20 @@ import { Icon } from '../../components/Icon'
 const MAX_ROWS = 500
 const dayLabel = (iso: string) => (iso ? iso.split('-').reverse().join('.') : '—')
 
-interface Result { added: number; skipped: number; failed: string | null }
+interface Result { added: number }
 
-/** Загрузка расписания группы из CSV: разбор в браузере, предпросмотр с проверкой строк, затем добавление по одному занятию. */
+/** Предпросмотр CSV в браузере, затем проверка и сохранение всех занятий одной транзакцией на сервере. */
 export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: ApiGroup; teachers:{id:string;name:string}[]; onClose: () => void; onDone: (r: Result) => void }) {
   const [fileName, setFileName] = useState('')
   const [rows, setRows] = useState<CsvLesson[] | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [drag, setDrag] = useState(false)
-  const [progress, setProgress] = useState<number | null>(null)
+  const [progress, setProgress] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && progress === null) onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !progress) onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose, progress])
@@ -47,26 +47,20 @@ export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: A
   const invalid = (rows?.length ?? 0) - valid.length
 
   const run = async () => {
-    let added = 0, skipped = 0
-    let failed: string | null = null
-    for (const [i, r] of valid.entries()) {
-      setProgress(i)
-      try {
-        await staffApi.addLesson(group.id, {
-          subject: r.subject, kind: r.kind, teacherId:teachers.find(t=>t.name.toLowerCase()===r.teacherName.trim().toLowerCase())?.id, teacherName: r.teacherName, room: r.room,
-          startsAt: new Date(`${r.date}T${r.from}:00+03:00`).toISOString(), endsAt: new Date(`${r.date}T${r.to}:00+03:00`).toISOString(),
-          changeNote: r.changeNote || null,
-        })
-        added++
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409) skipped++
-        else { failed = e instanceof ApiError ? e.message : 'Не удалось сохранить занятие'; break }
-      }
-    }
-    setProgress(null)
-    const res = { added, skipped, failed }
-    setResult(res)
-    onDone(res)
+    if (!rows || invalid || progress) return
+    setProgress(true)
+    try {
+      const lessons = rows.map(r => ({
+        subject: r.subject, kind: r.kind, teacherId: teachers.find(t => t.name.toLowerCase() === r.teacherName.trim().toLowerCase())!.id, teacherName: r.teacherName,
+        room: r.room, startsAt: new Date(`${r.date}T${r.from}:00+03:00`).toISOString(),
+        endsAt: new Date(`${r.date}T${r.to}:00+03:00`).toISOString(), changeNote: r.changeNote || null,
+      }))
+      const result = await staffApi.importLessons(group.id, lessons)
+      setResult({ added: result.added })
+      onDone({ added: result.added })
+    } catch (e) {
+      setProblem(e instanceof ApiError ? e.message : 'Не удалось загрузить расписание. Ничего не добавлено.')
+    } finally { setProgress(false) }
   }
 
   const downloadTemplate = () => {
@@ -79,14 +73,14 @@ export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: A
   }
 
   return (
-    <div className="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && progress === null) onClose() }}>
+    <div className="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !progress) onClose() }}>
       <div className="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="csv-title">
         <div className="dialog__head">
           <div>
             <h2 id="csv-title" className="card__title card__title--lg">Загрузка расписания из CSV</h2>
             <span className="small muted">Группа {group.name}</span>
           </div>
-          <button type="button" className="icon-btn icon-btn--sm" aria-label="Закрыть" disabled={progress !== null} onClick={onClose}><Icon name="x" size={18} /></button>
+          <button type="button" className="icon-btn icon-btn--sm" aria-label="Закрыть" disabled={progress} onClick={onClose}><Icon name="x" size={18} /></button>
         </div>
 
         {!result && (
@@ -114,7 +108,7 @@ export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: A
           <>
             <p className="csv-summary">
               Строк: <b>{rows.length}</b> · готовы к добавлению: <b>{valid.length}</b>
-              {invalid > 0 && <> · с ошибками: <b className="csv-bad">{invalid}</b> (будут пропущены)</>}
+              {invalid > 0 && <> · с ошибками: <b className="csv-bad">{invalid}</b> (исправьте файл перед импортом)</>}
             </p>
             <div className="csv-table-wrap">
               <table className="csv-table">
@@ -130,16 +124,13 @@ export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: A
               </table>
             </div>
             {rows.length > 200 && <p className="small muted">Показаны первые 200 строк из {rows.length}; проверены все.</p>}
-            <p className="small muted">Занятия, которые пересекаются по времени с уже существующими занятиями группы, преподавателя или аудитории, будут пропущены. Подписанные на изменения студенты получат уведомления. Импорт может завершиться частично.</p>
+            <p className="small muted">Сервер проверит пересечения по группе, преподавателю и аудитории. При ошибке хотя бы в одном занятии весь импорт отменяется. Подписанные на изменения студенты получат одно уведомление.</p>
           </>
         )}
 
         {result && (
           <div className="csv-result" role="status">
             <b>Добавлено занятий: {result.added}</b>
-            {result.skipped > 0 && <span>Пропущено из-за пересечений по времени: {result.skipped}</span>}
-            {invalid > 0 && <span>Пропущено из-за ошибок в строках: {invalid}</span>}
-            {result.failed && <span className="csv-bad">Импорт остановлен: {result.failed}</span>}
           </div>
         )}
 
@@ -148,9 +139,9 @@ export function CsvImportDialog({ group, teachers, onClose, onDone }: { group: A
             <Button variant="strong" onClick={onClose}>Готово</Button>
           ) : (
             <>
-              <Button type="button" variant="surface" onClick={onClose} disabled={progress !== null}>Отмена</Button>
-              <Button type="button" variant="strong" icon="check" disabled={valid.length === 0 || progress !== null} onClick={() => void run()}>
-                {progress !== null ? `Добавляем ${progress + 1} из ${valid.length}…` : valid.length ? `Добавить ${valid.length} ${pluralize(valid.length, 'занятие', 'занятия', 'занятий')}` : 'Добавить занятия'}
+              <Button type="button" variant="surface" onClick={onClose} disabled={progress}>Отмена</Button>
+              <Button type="button" variant="strong" icon="check" disabled={valid.length === 0 || invalid > 0 || progress} onClick={() => void run()}>
+                {progress ? 'Проверяем и сохраняем…' : valid.length ? `Добавить ${valid.length} ${pluralize(valid.length, 'занятие', 'занятия', 'занятий')}` : 'Добавить занятия'}
               </Button>
             </>
           )}

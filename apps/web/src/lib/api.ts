@@ -109,6 +109,7 @@ export const staffApi = {
   lessons: (groupId: string, from: Date, to: Date) =>
     request<{ group: ApiGroup; lessons: ApiLesson[] }>(`/api/staff/groups/${groupId}/lessons?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`),
   addLesson: (groupId: string, input: LessonInput) => request<ApiLesson>(`/api/staff/groups/${groupId}/lessons`, 'POST', input),
+  importLessons: (groupId: string, lessons: LessonInput[]) => request<{added:number}>(`/api/staff/groups/${groupId}/lessons/import`, 'POST', { lessons }),
   updateLesson: (id: string, input: Partial<LessonInput>) => request<ApiLesson>(`/api/staff/lessons/${id}`, 'PATCH', input),
   deleteLesson: (id: string) => request<void>(`/api/staff/lessons/${id}`, 'DELETE'),
 }

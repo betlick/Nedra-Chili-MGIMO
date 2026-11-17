@@ -77,13 +77,14 @@ export type InquiryStatus = 'new' | 'progress' | 'closed'
 
 export interface Inquiry {
   id: string
+  studentId: string
   student: string
   initials: string
   group: string
   subject: string
   message: string
   status: InquiryStatus
-  replies: string[]
+  replies: { id: string; authorId: string; text: string; createdAt: string }[]
   assignmentId?: string
 }
 

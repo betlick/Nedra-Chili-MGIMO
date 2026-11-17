@@ -123,8 +123,24 @@ try {
       const [assignment] = await tx.select().from(teachingAssignments).where(and(eq(teachingAssignments.teacherId, teacher.id), eq(teachingAssignments.groupId, group.id)));
       if (!assignment) throw new Error('Demo teaching assignment missing');
 
-      await tx.insert(gradeEntries).values({ assignmentId: assignment.id, studentId: student.id, score: index === 0 ? 87 : 74 })
-        .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+      // Add fictional results for every demo discipline without changing existing grades.
+      const demoAssignments = await tx.select({ id: teachingAssignments.id, subject: subjects.name })
+        .from(teachingAssignments).innerJoin(subjects, eq(subjects.id, teachingAssignments.subjectId))
+        .where(eq(teachingAssignments.groupId, group.id));
+      const demoScores: Record<string, [number, number]> = {
+        'Макроэкономика': [87, 74],
+        'Английский язык': [79, 91],
+        'Основы вайб-кодинга': [93, 82],
+        'Теория вероятностей': [72, 68],
+        'История России': [85, 76],
+        'Проектирование интерфейсов': [90, 88],
+      };
+      for (const demoAssignment of demoAssignments) {
+        const score = demoScores[demoAssignment.subject]?.[index];
+        if (score === undefined) continue;
+        await tx.insert(gradeEntries).values({ assignmentId: demoAssignment.id, studentId: student.id, score })
+          .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+      }
 
       const requestPurpose = index === 0 ? 'Для предъявления по месту требования (демо)' : 'Для оформления учебной льготы (демо)';
       const [existingRequest] = await tx.select({ id: requests.id }).from(requests).where(and(eq(requests.studentId, student.id), eq(requests.purpose, requestPurpose))).limit(1);
