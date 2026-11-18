@@ -10,6 +10,7 @@ import { useIndicator } from '../../lib/useIndicator'
 import { STAGES, STATUS_LABEL, TYPE_DOT, TYPE_LABEL, TYPE_SHORT, isActive, isOverdue, overdueDays, shortNumber, sortQueue, stageOf, dueDate } from '../../lib/staff'
 import { Avatar, Badge, Button, Disclaimer, PageHeader, Stages, ThemeButton, type Tone } from '../../components/ui'
 import { Icon } from '../../components/Icon'
+import { RequestTypeChange } from './RequestTypeChange'
 
 type Filter = 'all' | ApiStaffRequest['type']
 type StatusFilter = 'active' | 'all' | 'overdue' | 'done' | ApiStaffRequest['status']
@@ -175,6 +176,10 @@ export function StaffTasksPage() {
                     {selected.comment && (<><br /><b>Комментарий:</b> {selected.comment}</>)}
                   </p>
                 </div>
+                {selected.type === 'other' && (selected.status === 'submitted' || selected.status === 'in_progress') && (
+                  <RequestTypeChange key={selected.id} row={selected} onChanged={(message) => { toast(message); void reload() }} />
+                )}
+                {selected.previousType && <p className="small muted">Вид уточнён деканатом: было «{TYPE_LABEL[selected.previousType]}».</p>}
                 <div className="info-tiles">
                   <div><span>Группа</span><b>{selected.groupName ?? '—'}</b></div>
                   <div><span>Получение</span><b>{selected.delivery === 'pdf' ? 'Электронно (PDF)' : 'В деканате'}</b></div>

@@ -8,6 +8,7 @@ import type { connectDatabase } from './db.js';
 import { requestPdf } from './request-pdf.js';
 import { notifications, requests, users, groups } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
+import { requestNotice, typeChangeNotice } from './request-notice.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string };
 export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService) {
@@ -40,7 +41,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     const pushed: PushNotice[] = [];
     const result = await db.transaction(async tx => {
       const [row] = await tx.insert(requests).values({ studentId: id, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
-      pushed.push(...await tx.insert(notifications).values({ studentId: id, title: 'Заявка принята', body: 'Заявка зарегистрирована в деканате.' }).returning());
+      pushed.push(...await tx.insert(notifications).values({ studentId: id, kind: 'request', requestId: row!.id, ...requestNotice(row!, 'submitted') }).returning());
       return row;
     });
     publishPush(push, pushed, app.log);
@@ -92,7 +93,8 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
         documentBase64 = (await requestPdf({ ...row, ...student!, ...(row.type==='study'?row.draftSnapshot:{}), readyAt: readyAt! })).toString('base64');
       }
       const [updated] = await tx.update(requests).set({ status: req.body.status, processedBy: staffId, updatedAt: new Date(), readyAt, documentBase64, ...(req.body.status==='rejected'?{rejectionReason:req.body.reason!.trim()}: {}) }).where(eq(requests.id, row.id)).returning();
-      pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, title: req.body.status === 'ready' ? 'Заявка готова' : 'Статус заявки изменён', body: 'Откройте раздел заявок для просмотра.' }).returning());
+      const notice = requestNotice(row, req.body.status as 'in_progress' | 'ready' | 'issued' | 'rejected', req.body.reason?.trim());
+      pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, kind: 'request', requestId: row.id, ...notice }).returning());
       return { code: 200, data: publicRow(updated!) };
     });
     publishPush(push, pushed, app.log);
@@ -100,6 +102,29 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     return { data: result.data };
   });
 
+  // Смена вида заявки сотрудником (например, «Иное обращение» → «Продление сессии»).
+  app.patch<{ Params: { id: string }; Body: { type: string } }>('/api/staff/requests/:id/type', {
+    schema: {
+      params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+      body: { type: 'object', required: ['type'], additionalProperties: false, properties: { type: { type: 'string', enum: REQUEST_TYPE_IDS } } },
+    },
+  }, async (req, reply) => {
+    const staffId = await staff(req, reply); if (!staffId) return;
+    const pushed: PushNotice[] = [];
+    const row = await db.transaction(async tx => {
+      const [r] = await tx.select().from(requests).where(eq(requests.id, req.params.id)).for('update');
+      if (!r) fail(404, 'Заявка не найдена');
+      if (!['submitted', 'in_progress'].includes(r.status)) fail(409, 'Вид можно изменить только у принятой заявки или заявки в работе');
+      if (r.type === req.body.type) return r;
+      // Черновик справки готовился под прежний вид — сбрасываем его, проверку нужно пройти заново.
+      const [updated] = await tx.update(requests).set({ type: req.body.type, previousType: r.type, typeChangedBy: staffId, typeChangedAt: new Date(), updatedAt: new Date(),
+        draftId: null, draftSnapshot: null, verifiedAt: null, verifiedBy: null, previewedAt: null }).where(eq(requests.id, r.id)).returning();
+      pushed.push(...await tx.insert(notifications).values({ studentId: r.studentId, kind: 'request', requestId: r.id, ...typeChangeNotice(updated!, r.type) }).returning());
+      return updated!;
+    });
+    publishPush(push, pushed, app.log);
+    return { data: publicRow(row) };
+  });
   app.post<{Params:{id:string}}>('/api/staff/requests/:id/prepare', async(req,reply)=>{
     const staffId=await staff(req,reply);if(!staffId)return;
     if(bodyObject(req.body).verified!==true)fail(400,'Подтвердите проверку сведений и факта обучения');

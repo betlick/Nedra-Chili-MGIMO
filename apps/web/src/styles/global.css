@@ -8014,3 +8014,62 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
   font-weight: 600;
   color: var(--ink-3);
 }
+
+/* «Сколько баллов до цели» — раскрывающийся блок по образцу «Оформления» (.collapse) */
+.goal.collapse .goal__list {
+  margin: 0;
+}
+.goal.collapse .seg {
+  align-self: flex-start;
+}
+
+/* ═════════ Разбор успеваемости ИИ ═════════
+   Пометка «Разбор ИИ» берёт цвет текста окружения, поэтому читается на лимонной карточке (card--hl) во всех темах. */
+.badge.ai-mark {
+  background: transparent;
+  color: inherit;
+  border: 1.5px solid currentColor;
+  height: 22px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.ai-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ═════════ Смена вида заявки и переход из уведомления ═════════ */
+.type-change {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.type-change__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.type-change__select {
+  flex: 1 1 200px;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  font-size: 16px;
+}
+.attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline-start: 18px;
+  list-style: disc;
+}
+/* заявка, открытая из уведомления */
+.req.is-target {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}

@@ -125,6 +125,18 @@ try {
 
       await tx.insert(gradeEntries).values({ assignmentId: assignment.id, studentId: student.id, score: index === 0 ? 87 : 74 })
         .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+      // Баллы по остальным дисциплинам группы: высокий, на грани допуска (45–55) и ниже 40.
+      // Только недостающие записи: выставленные преподавателем или снятые баллы не перезаписываются.
+      const demoScores: Record<string, number> = index === 0
+        ? { 'Английский язык': 92, 'Основы вайб-кодинга': 71, 'Теория вероятностей': 48, 'История России': 36, 'Проектирование интерфейсов': 64 }
+        : { 'Английский язык': 81, 'Основы вайб-кодинга': 90, 'Теория вероятностей': 52, 'История России': 67, 'Проектирование интерфейсов': 34 };
+      const groupAssignments = await tx.select({ id: teachingAssignments.id, subject: subjects.name }).from(teachingAssignments)
+        .innerJoin(subjects, eq(subjects.id, teachingAssignments.subjectId)).where(eq(teachingAssignments.groupId, group.id));
+      for (const a of groupAssignments) {
+        const score = demoScores[a.subject];
+        if (score !== undefined) await tx.insert(gradeEntries).values({ assignmentId: a.id, studentId: student.id, score })
+          .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+      }
 
       const requestPurpose = index === 0 ? 'Для предъявления по месту требования (демо)' : 'Для оформления учебной льготы (демо)';
       const [existingRequest] = await tx.select({ id: requests.id }).from(requests).where(and(eq(requests.studentId, student.id), eq(requests.purpose, requestPurpose))).limit(1);

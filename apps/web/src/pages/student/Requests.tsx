@@ -1,6 +1,6 @@
 import { dataApi, downloadFile, type ApiAssignment } from '../../lib/api'
 import { STATUS_LABEL } from '../../lib/staff'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useIndicator } from '../../lib/useIndicator'
 import { useSmoothHeight } from '../../lib/useSmoothHeight'
 import { useData } from '../../context/data'
@@ -9,7 +9,7 @@ import { REQUEST_STAGES, REQUEST_TYPES } from '../../data/mock'
 import type { Delivery, RequestType } from '../../types'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Segmented, Stages, ThemeButton } from '../../components/ui'
 import { RequestTypePicker } from '../../components/RequestTypePicker'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 type Filter = 'all' | 'work' | 'ready'
 type Target = 'dean' | 'teacher'
@@ -38,6 +38,21 @@ export function RequestsPage() {
   }
 
   const [busy, setBusy] = useState(false)
+  // Переход из уведомления: /student/requests?id=… выделяет заявку и прокручивает к ней.
+  const [params] = useSearchParams()
+  const targetId = params.get('id')
+  const scrolledTo = useRef<string | null>(null)
+  useEffect(() => {
+    if (!targetId || scrolledTo.current === targetId || !requests.some((r) => r.id === targetId)) return
+    scrolledTo.current = targetId
+    setFilter('all')
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`req-${targetId}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+      el.focus({ preventScroll: true })
+    })
+  }, [targetId, requests])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -193,7 +208,7 @@ export function RequestsPage() {
           {shown.length === 0 && <p className="muted">Здесь пока пусто.</p>}
           <div className="stack">
             {shown.map((r) => (
-              <article key={r.id} className="req">
+              <article key={r.id} id={`req-${r.id}`} className={`req ${r.id === targetId ? 'is-target' : ''}`} tabIndex={r.id === targetId ? -1 : undefined} aria-current={r.id === targetId ? 'true' : undefined}>
                 <div className="req__head">
                   <h3>{REQUEST_TYPES[r.type]}</h3>
                   <Badge tone={r.stage >= 2 ? 'ok' : 'neutral'}>{STATUS_LABEL[r.status]}</Badge>

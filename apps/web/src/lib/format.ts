@@ -60,11 +60,17 @@ export const daysLeftLabel = (days: number) => {
   return `через ${days} ${plural(days, 'день', 'дня', 'дней')}`
 }
 
-/** Шкала с макета ведомости: <50 — 2, 50–69 — 3, 70–84 — 4, от 85 — 5. */
-export const markFor = (score: number) => (score < 50 ? 2 : score < 70 ? 3 : score < 85 ? 4 : 5)
+/**
+ * Шкала оценок: менее 40 — «2», 40–59 — «3», 60–79 — «4», от 80 — «5»; зачёт от 40; допуск к сессии — от 50 по каждой дисциплине.
+ * Те же пороги на сервере: apps/api/src/grades-scale.ts (по ним считается разбор успеваемости).
+ */
+export const ADMISSION = 50
+export const CREDIT = 40
+export const MARK_FROM = { 3: 40, 4: 60, 5: 80 } as const
+export const markFor = (score: number) => (score < MARK_FROM[3] ? 2 : score < MARK_FROM[4] ? 3 : score < MARK_FROM[5] ? 4 : 5)
 
 export const gradeLabel = (score: number, form: ExamForm) =>
-  form === 'Зачёт' ? (score >= 50 ? 'Зачтено' : 'Не зачтено') : String(markFor(score))
+  form === 'Зачёт' ? (score >= CREDIT ? 'Зачтено' : 'Не зачтено') : String(markFor(score))
 
 export const average = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0)
 

@@ -69,6 +69,8 @@ export interface ApiStaffRequest {
   readyAt: string | null
   fullName: string
   groupName: string | null
+  previousType?: RequestType | null
+  typeChangedAt?: string | null
 }
 export interface ApiGroup { id: string; name: string; faculty: string; program: string; year: number }
 export type ApiLessonKind = 'lecture' | 'seminar' | 'practice'
@@ -101,6 +103,7 @@ export interface LessonInput {
 
 export const staffApi = {
   teachers:()=>request<{id:string;name:string}[]>('/api/staff/teachers'),
+  changeType:(id:string,type:RequestType)=>request<ApiStaffRequest>(`/api/staff/requests/${id}/type`,'PATCH',{type}),
   prepare:(id:string)=>request<ApiStaffRequest>(`/api/staff/requests/${id}/prepare`,'POST',{verified:true}),
   requests: () => request<ApiStaffRequest[]>('/api/staff/requests'),
   setStatus: (id: string, status: 'in_progress' | 'ready' | 'issued' | 'rejected', extra: {reason?:string;draftId?:string} = {}) => request<ApiStaffRequest>(`/api/staff/requests/${id}/status`, 'PATCH', { status, ...extra }),
@@ -118,7 +121,7 @@ export interface ApiGrade {id:string;name:string;form:'Экзамен'|'Зачё
 export interface ApiDeadline {id:string;assignmentId:string;title:string;dueAt:string;subject:string;group:string}
 export interface ApiAnnouncement {id:string;groupId:string|null;groupName:string|null;title:string;body:string;cover:string|null;createdAt:string}
 export interface ApiSheet extends ApiAssignment { students:{id:string;name:string;score:number|null}[] }
-export interface ApiNotice {id:string;kind:string;title:string;body:string;readAt:string|null;createdAt:string}
+export interface ApiNotice {id:string;kind:string;title:string;body:string;readAt:string|null;createdAt:string;requestId?:string|null}
 export interface ApiInquiry {id:string;studentId:string;teacherId:string;assignmentId:string;student:string;group:string|null;subject:string;text:string;status:'new'|'progress'|'closed';createdAt:string;replies:{id:string;text:string;authorId:string;createdAt:string}[]}
 export interface ApiMaterial {id:string;assignmentId:string;title:string;fileName:string;mimeType:string;size:number;createdAt:string;subject:string;group:string}
 export interface ApiPrefs {deadlines:boolean;schedule:boolean;news:boolean}
@@ -158,4 +161,12 @@ export async function downloadFile(path:string,fileName:string,body?:object) {
   const response=await fetch(path,{credentials:'same-origin',method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-CSRF-Protection':'1'}:undefined,body:body?JSON.stringify(body):undefined})
   if(!response.ok){const payload=await response.json().catch(()=>null);throw new ApiError(response.status,payload?.error?.message??'Не удалось скачать файл')}
   const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+}
+
+/* ── Разбор успеваемости ИИ: только текст по числам, которые посчитал сервер ── */
+export type AiReason = 'disabled' | 'timeout' | 'unavailable' | 'invalid'
+export type AiResult<T> = ({ ok: true } & T) | { ok: false; reason: AiReason }
+export interface AiInsight { summary: string | null; items: { subject: string; note: string }[] }
+export const aiApi = {
+  grades: () => request<AiResult<AiInsight>>('/api/ai/grades-insight'),
 }
