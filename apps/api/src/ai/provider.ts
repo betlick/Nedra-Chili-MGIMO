@@ -94,12 +94,12 @@ export function mockProvider(): AiProvider {
       if (data.includes('MOCK_UNAVAILABLE')) throw new AiError('unavailable');
       if (data.includes('MOCK_INVALID_JSON')) return 'Конечно! Вот разбор: {summary: всё хорошо';
       // Разбор успеваемости по готовым числам: самые низкие баллы первыми.
-      const facts = JSON.parse(data) as { средний_балл: number; дисциплины: { дисциплина: string; балл: number; допуск: boolean; не_хватает_до_допуска: number }[] };
+      const facts = JSON.parse(data) as { средний_балл: number; дисциплины: { дисциплина: string; балл: number; проходной_результат: boolean; не_хватает_до_проходного: number }[] };
       const list = [...facts.дисциплины].sort((a, b) => a.балл - b.балл);
-      const risky = list.filter(d => !d.допуск);
+      const risky = list.filter(d => !d.проходной_результат);
       return JSON.stringify({
-        summary: risky.length ? `Средний балл ${facts.средний_балл}. Без допуска: ${risky.length} — начните с них.` : `Средний балл ${facts.средний_балл}. Допуск есть по всем дисциплинам.`,
-        items: list.slice(0, 3).map(d => ({ subject: d.дисциплина, note: d.допуск ? `${d.балл} баллов, допуск есть.` : `${d.балл} баллов: до допуска не хватает ${d.не_хватает_до_допуска}.` })),
+        summary: risky.length ? `Средний балл ${facts.средний_балл}. Ниже проходного: ${risky.length} — начните с них.` : `Средний балл ${facts.средний_балл}. Проходной результат есть по всем дисциплинам.`,
+        items: list.slice(0, 3).map(d => ({ subject: d.дисциплина, note: d.проходной_результат ? `${d.балл} баллов, проходной результат есть.` : `${d.балл} баллов: до проходного не хватает ${d.не_хватает_до_проходного}.` })),
       });
     },
   };

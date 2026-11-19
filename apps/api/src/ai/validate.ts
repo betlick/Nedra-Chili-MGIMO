@@ -24,6 +24,8 @@ export function parseInsight(value: unknown, subjects: string[], allowed: Set<nu
     .filter((i, n, all) => all.findIndex(x => x.subject === i.subject) === n)
     .slice(0, 4);
   if (!summary || !items.length) return null;
+  // Правило допуска не определено: текст о «допуске» вводил бы студента в заблуждение.
+  if (/допуск/i.test([summary, ...items.map(i => i.note)].join(' '))) return null;
   const numbers = [summary, ...items.map(i => i.note)].join(' ').match(/\d+/g) ?? [];
   if (numbers.some(n => !allowed.has(Number(n)))) return null;
   return { summary, items };

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { actor, assignmentFilter, assignmentsQuery, DomainError, fail, type Authorize, type Db } from '../domain.js';
 import { gradeEntries } from '../schema.js';
-import { gradeFacts, ADMISSION, CREDIT, MARKS } from '../grades-scale.js';
+import { gradeFacts, PASS, MARKS } from '../grades-scale.js';
 import { AiError, type AiCall, type AiProvider, type AiReason } from './provider.js';
 import { createCache, fingerprint } from './cache.js';
 import type { Limiter } from './limit.js';
@@ -66,15 +66,15 @@ export function aiRoutes(app: FastifyInstance, db: Db, auth: Authorize, deps: Ai
     if (hit) return reply<Insight>({ ok: true, value: hit });
     const input = {
       средний_балл: facts.average,
-      допуск_есть: `${facts.admittedCount} из ${facts.items.length}`,
+      проходной_результат_есть: `${facts.passedCount} из ${facts.items.length}`,
       дисциплины: facts.items.map(i => ({
         дисциплина: i.subject, форма: i.form, балл: i.score, результат: i.result,
-        допуск: i.admitted, не_хватает_до_допуска: i.toAdmission,
+        проходной_результат: i.passed, не_хватает_до_проходного: i.toPass,
         следующая_оценка: i.next, не_хватает_до_следующей: i.toNext,
       })),
     };
-    const allowed = new Set<number>([facts.average, facts.admittedCount, facts.items.length, ADMISSION, CREDIT, ...MARKS.flat(), 1, 2, 3, 4, 5,
-      ...facts.items.flatMap(i => [i.score, i.toAdmission, i.toNext])]);
+    const allowed = new Set<number>([facts.average, facts.passedCount, facts.items.length, PASS, ...MARKS.flat(), 1, 2, 3, 4, 5,
+      ...facts.items.flatMap(i => [i.score, i.toPass, i.toNext])]);
     const outcome = await run(id, { task: 'grades', system: GRADES_SYSTEM, user: gradesUser(input), json: true },
       v => parseInsight(v, rows.map(r => r.subject), allowed));
     if (outcome.ok) insights.set(key, outcome.value);

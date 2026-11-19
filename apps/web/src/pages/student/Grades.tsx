@@ -1,13 +1,9 @@
 import { useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
-<<<<<<< HEAD
-import { ADMISSION, CREDIT, MARK_FROM, average, gradeLabel, markFor, pluralize } from '../../lib/format'
+import { CREDIT, MARK_FROM, PASS, average, gradeLabel, markFor, pluralize } from '../../lib/format'
 import { GradesInsight } from '../../components/ai/GradesInsight'
-=======
-import { average, gradeLabel } from '../../lib/format'
 import { GradeForecast } from './GradeForecast'
->>>>>>> origin/main
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -18,13 +14,10 @@ export function GradesPage() {
   const navigate = useNavigate()
   const { forMe } = useMaterials()
   const [selectedTerm,setTerm]=useState('')
-<<<<<<< HEAD
   const [goal,setGoal]=useState<'3'|'4'|'5'>('5')
   // «Сколько баллов до цели» свёрнут по умолчанию, как «Оформление» в профиле.
   const [goalOpen, setGoalOpen] = useState(false)
   const goalPanelId = useId()
-=======
->>>>>>> origin/main
   const semesters=[...new Set(grades.map(g=>g.semester))].sort((a,b)=>b-a)
   const term=selectedTerm||String(semesters[0]??1)
   const all=grades.filter(g=>String(g.semester)===term)
@@ -41,8 +34,7 @@ export function GradesPage() {
     )
   }
   const avg = average(list.map((d) => d.score))
-<<<<<<< HEAD
-  const admitted = list.filter((d) => d.score >= ADMISSION).length
+  const passed = list.filter((d) => d.score >= PASS).length
   const exams = all.filter((d) => d.form === 'Экзамен').length
   const credits = all.length - exams
   // порог баллов для оценки: шкала из markFor (40 / 60 / 80); для зачёта цель — 40
@@ -53,27 +45,21 @@ export function GradesPage() {
   const goalMissing = toGoal.filter(({ need }) => need > 0).length
   // «Самый низкий результат» имеет смысл только среди нескольких оценок.
   const weakest = list.length > 1 ? [...list].sort((a, b) => a.score - b.score)[0] : undefined
-  const notAdmitted = [...list].filter((d) => d.score < ADMISSION).sort((a, b) => a.score - b.score)
+  const belowPass = [...list].filter((d) => d.score < PASS).sort((a, b) => a.score - b.score)
   const isLatestTerm = term === String(semesters[0] ?? 1)
   // Шаблонный текст «Обратите внимание»: всё считает код. Показывается, пока нет разбора ИИ или ИИ недоступен.
-  const attention = notAdmitted.length ? (
+  const attention = belowPass.length ? (
     <>
-      <p>Допуска пока нет по {notAdmitted.length} {pluralize(notAdmitted.length, 'дисциплине', 'дисциплинам', 'дисциплинам')}. Нужно не менее {ADMISSION} баллов.</p>
+      <p>Ниже проходного результата ({PASS} баллов): {belowPass.length} {pluralize(belowPass.length, 'дисциплина', 'дисциплины', 'дисциплин')}.</p>
       <ul className="attention-list">
-        {notAdmitted.map((d) => <li key={d.id}><b>{d.name}</b> — {d.score} {pluralize(d.score, 'балл', 'балла', 'баллов')}, не хватает {ADMISSION - d.score}.</li>)}
+        {belowPass.map((d) => <li key={d.id}><b>{d.name}</b> — {d.score} {pluralize(d.score, 'балл', 'балла', 'баллов')}, не хватает {PASS - d.score}.</li>)}
       </ul>
     </>
   ) : weakest ? (
-    <p>«{weakest.name}» — {weakest.score} {pluralize(weakest.score, 'балл', 'балла', 'баллов')}: допуск есть, но это самый низкий результат семестра.</p>
+    <p>«{weakest.name}» — {weakest.score} {pluralize(weakest.score, 'балл', 'балла', 'баллов')}: {weakest.form === 'Зачёт' ? 'зачёт есть' : 'проходной результат есть'}, но это самый низкий результат семестра.</p>
   ) : list[0] ? (
-    <p>«{list[0].name}» — {list[0].score} {pluralize(list[0].score, 'балл', 'балла', 'баллов')}, допуск есть.{all.length > 1 ? ' Остальные баллы пока не выставлены.' : ''}</p>
+    <p>«{list[0].name}» — {list[0].score} {pluralize(list[0].score, 'балл', 'балла', 'баллов')}, {list[0].form === 'Зачёт' ? 'зачёт есть' : 'проходной результат есть'}.{all.length > 1 ? ' Остальные баллы пока не выставлены.' : ''}</p>
   ) : null
-=======
-  const passed = list.filter((d) => d.score >= 40).length
-  const exams = all.filter((d) => d.form === 'Экзамен').length
-  const credits = all.length - exams
-  const weakest = [...list].sort((a, b) => a.score - b.score)[0]
->>>>>>> origin/main
 
   return (
     <>
@@ -165,7 +151,6 @@ export function GradesPage() {
             </div>
           </section>
 
-<<<<<<< HEAD
           {attention && (isLatestTerm
             ? <GradesInsight scoresKey={list.map((d) => `${d.id}:${d.score}`).join('|')} fallback={attention} />
             : <section className="card card--hl">
@@ -209,21 +194,13 @@ export function GradesPage() {
                       </li>
                     ))}
                   </ul>
-                  <p className="small muted">Считаем по текущим баллам: шкала {MARK_FROM[3]} — «3», {MARK_FROM[4]} — «4», {MARK_FROM[5]} — «5». Для зачёта достаточно {CREDIT}, для допуска — {ADMISSION}.</p>
+                  <p className="small muted">Считаем по текущим баллам: шкала {MARK_FROM[3]} — «3», {MARK_FROM[4]} — «4», {MARK_FROM[5]} — «5». Для зачёта и проходного результата достаточно {CREDIT}.</p>
                 </div>
               </div>
             </section>
           )}
-=======
-          {weakest && <section className="card card--hl">
-            <h2 className="card__title card__title--lg">Обратите внимание</h2>
-            <p>
-              «{weakest.name}» — {weakest.score} баллов: {weakest.score >= 40 ? (weakest.form === 'Зачёт' ? 'зачёт есть' : 'проходной результат есть') : 'пока ниже проходного порога'}, это самый низкий результат семестра.
-            </p>
-          </section>}
 
           {all.length > 0 && <GradeForecast grades={all} />}
->>>>>>> origin/main
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

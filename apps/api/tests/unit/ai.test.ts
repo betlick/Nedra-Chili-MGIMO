@@ -10,15 +10,15 @@ import { gradesUser } from '../../src/ai/prompts/grades-insight.js';
 
 const signal = () => new AbortController().signal;
 
-test('grade scale: <40 — 2, 40–59 — 3, 60–79 — 4, from 80 — 5; credit from 40; admission from 50', () => {
+test('grade scale: <40 — 2, 40–59 — 3, 60–79 — 4, from 80 — 5; credit and pass from 40', () => {
   assert.deepEqual([0, 39, 40, 59, 60, 79, 80, 100].map(markFor), [2, 2, 3, 3, 4, 4, 5, 5]);
-  const { average, admittedCount, items } = gradeFacts([
+  const { average, passedCount, items } = gradeFacts([
     { subject: 'А', form: 'Экзамен', score: 48 }, { subject: 'Б', form: 'Зачёт', score: 36 }, { subject: 'В', form: 'Зачёт', score: 45 }, { subject: 'Г', form: 'Экзамен', score: 92 },
   ]);
   assert.equal(average, 55);
-  assert.equal(admittedCount, 1);
-  assert.deepEqual(items.map(i => [i.result, i.admitted, i.toAdmission, i.next, i.toNext]), [
-    ['3', false, 2, '4', 12], ['не зачтено', false, 14, 'зачёт', 4], ['зачтено', false, 5, null, 0], ['5', true, 0, null, 0],
+  assert.equal(passedCount, 3);
+  assert.deepEqual(items.map(i => [i.result, i.passed, i.toPass, i.next, i.toNext]), [
+    ['3', true, 0, '4', 12], ['не зачтено', false, 4, 'зачёт', 4], ['зачтено', true, 0, null, 0], ['5', true, 0, null, 0],
   ]);
 });
 
@@ -30,8 +30,9 @@ test('JSON extraction tolerates code fences but rejects broken answers', () => {
 });
 
 test('grades insight rejects invented subjects and numbers', () => {
-  const allowed = new Set([48, 2, 50]);
-  assert(parseInsight({ summary: 'Не хватает 2 баллов до допуска.', items: [{ subject: 'Теория', note: '48 баллов, до 50 не хватает 2.' }] }, ['Теория'], allowed));
+  const allowed = new Set([38, 2, 40]);
+  assert(parseInsight({ summary: 'Не хватает 2 баллов до проходного результата.', items: [{ subject: 'Теория', note: '38 баллов, до 40 не хватает 2.' }] }, ['Теория'], allowed));
+  assert.equal(parseInsight({ summary: 'Допуска пока нет.', items: [{ subject: 'Теория', note: '38 баллов.' }] }, ['Теория'], allowed), null);
   assert.equal(parseInsight({ summary: 'Нужно 7 баллов.', items: [{ subject: 'Теория', note: 'ок' }] }, ['Теория'], allowed), null);
   assert.equal(parseInsight({ summary: 'Всё хорошо.', items: [{ subject: 'Химия', note: 'ок' }] }, ['Теория'], allowed), null);
   assert.equal(parseInsight({ summary: '', items: [] }, ['Теория'], allowed), null);
@@ -49,9 +50,9 @@ test('data cannot close the data block of the prompt', () => {
 test('mock provider works without a key; misconfiguration is detected', async () => {
   const provider = createProvider({ AI_PROVIDER: 'mock' })!;
   assert.equal(provider.name, 'mock');
-  const facts = gradeFacts([{ subject: 'А', form: 'Экзамен', score: 48 }, { subject: 'Б', form: 'Зачёт', score: 92 }]);
-  const input = { средний_балл: facts.average, дисциплины: facts.items.map(i => ({ дисциплина: i.subject, балл: i.score, допуск: i.admitted, не_хватает_до_допуска: i.toAdmission })) };
-  const answer = parseInsight(extractJson(await provider.complete({ task: 'grades', system: '', user: gradesUser(input), json: true }, signal())), ['А', 'Б'], new Set([70, 48, 92, 2, 1]));
+  const facts = gradeFacts([{ subject: 'А', form: 'Экзамен', score: 38 }, { subject: 'Б', form: 'Зачёт', score: 92 }]);
+  const input = { средний_балл: facts.average, дисциплины: facts.items.map(i => ({ дисциплина: i.subject, балл: i.score, проходной_результат: i.passed, не_хватает_до_проходного: i.toPass })) };
+  const answer = parseInsight(extractJson(await provider.complete({ task: 'grades', system: '', user: gradesUser(input), json: true }, signal())), ['А', 'Б'], new Set([65, 38, 92, 2, 1]));
   assert.equal(answer?.items[0]?.subject, 'А');
   assert.equal(createProvider({ AI_PROVIDER: '' }), null);
   assert.equal(createProvider({ AI_PROVIDER: 'off' }), null);
