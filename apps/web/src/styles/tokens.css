@@ -359,6 +359,22 @@
   --input-bg: #ffffff;
   --input-line: #ddd2bd;
 
+  /* сплошные значения для всплывающих окон: без них брались белые из «Тумана» */
+  --surface-solid: #ffffff;
+  --surface-2-solid: #f8f2e7;
+  --surface-3-solid: #f1eadb;
+  --line-solid: #eee6d6;
+  --input-bg-solid: #ffffff;
+  --accent-solid: #1d4c3a;
+  --accent-2-solid: #265f48;
+  --primary-solid: #a51d34;
+  --hl-soft-solid: #fdf0d2;
+  --track-solid: #efe8da;
+  --warn-bg-solid: #fae2b7;
+  --danger-bg-solid: #f7d4cb;
+  --ok-bg-solid: #dcefdc;
+  --neutral-chip-solid: #f4ecdd;
+
   --ink: #1c1b17;
   --ink-2: #4f4b41;
   --ink-3: #8f897b;
@@ -420,6 +436,22 @@
   --line: #213150;
   --input-bg: #152238;
   --input-line: #2a3b5a;
+
+  /* сплошные значения для всплывающих окон: без них брались белые из «Тумана» */
+  --surface-solid: #142137;
+  --surface-2-solid: #1a2a45;
+  --surface-3-solid: #111d31;
+  --line-solid: #213150;
+  --input-bg-solid: #152238;
+  --accent-solid: #1d4c3a;
+  --accent-2-solid: #265f48;
+  --primary-solid: #f2c14e;
+  --hl-soft-solid: #2d2816;
+  --track-solid: #25365a;
+  --warn-bg-solid: #3a2f18;
+  --danger-bg-solid: #3d1f22;
+  --ok-bg-solid: #1b3526;
+  --neutral-chip-solid: #22324f;
 
   --ink: #f4f0e6;
   --ink-2: #b9c1d0;

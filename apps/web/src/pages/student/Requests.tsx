@@ -9,13 +9,14 @@ import { REQUEST_STAGES, REQUEST_TYPES } from '../../data/mock'
 import type { Delivery, RequestType } from '../../types'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Segmented, Stages, ThemeButton } from '../../components/ui'
 import { RequestTypePicker } from '../../components/RequestTypePicker'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { InquiryThreads } from '../../components/InquiryThreads'
 
 type Filter = 'all' | 'work' | 'ready'
 type Target = 'dean' | 'teacher'
 
 export function RequestsPage() {
-  const { requests, addRequest, cancelRequest, unreadCount, reload } = useData()
+  const { requests, addRequest, cancelRequest, unreadCount, reload, inquiries } = useData()
   const toast = useToast()
   const [type, setType] = useState<RequestType>('study')
   const [purpose, setPurpose] = useState('')
@@ -23,7 +24,8 @@ export function RequestsPage() {
   const [delivery, setDelivery] = useState<Delivery>('pdf')
   const [filter, setFilter] = useState<Filter>('all')
   const [error, setError] = useState('')
-  const [target, setTarget] = useState<Target>('dean')
+  // /student/requests?to=teacher открывает вкладку обращений (по этой ссылке приходят из уведомлений и со старой страницы)
+  const [target, setTarget] = useState<Target>(() => (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('to') === 'teacher' ? 'teacher' : 'dean'))
   const [teacher, setTeacher] = useState('')
   const [teachers, setTeachers] = useState<ApiAssignment[]>([])
   const [teacherError, setTeacherError] = useState('')
@@ -41,6 +43,8 @@ export function RequestsPage() {
   // Переход из уведомления: /student/requests?id=… выделяет заявку и прокручивает к ней.
   const [params] = useSearchParams()
   const targetId = params.get('id')
+  const toParam = params.get('to')
+  useEffect(() => { if (toParam === 'teacher') setTarget('teacher') }, [toParam])
   const scrolledTo = useRef<string | null>(null)
   useEffect(() => {
     if (!targetId || scrolledTo.current === targetId || !requests.some((r) => r.id === targetId)) return
@@ -186,6 +190,15 @@ export function RequestsPage() {
         </form>
 
         <section className="card">
+          {target === 'teacher' ? (
+            <>
+              <div className="card__head card__head--wrap">
+                <h2 className="card__title card__title--lg">Мои обращения{inquiries.length > 0 && <span className="card__count"> · {inquiries.length}</span>}</h2>
+              </div>
+              <InquiryThreads teachers={teachers} />
+            </>
+          ) : (
+            <>
           <div className="card__head card__head--wrap">
             <h2 className="card__title card__title--lg">Мои заявки</h2>
             <div ref={chipsInd.box} className="chips" role="radiogroup" aria-label="Фильтр">
@@ -204,7 +217,6 @@ export function RequestsPage() {
             </div>
           </div>
 
-          <Link to="/student/inquiries" className="link">Мои обращения к преподавателям</Link>
           {shown.length === 0 && <p className="muted">Здесь пока пусто.</p>}
           <div className="stack">
             {shown.map((r) => (
@@ -240,6 +252,8 @@ export function RequestsPage() {
               </article>
             ))}
           </div>
+            </>
+          )}
         </section>
       </div>
       <Disclaimer />

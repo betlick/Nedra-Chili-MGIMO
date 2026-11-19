@@ -38,7 +38,6 @@ function useNav(): NavItem[] {
       { to: '/student/schedule', label: 'Расписание', icon: 'calendar' },
       { to: '/student/grades', label: 'Предметы', icon: 'chart', badge: unreadMaterials },
       { to: '/student/requests', label: 'Заявки', icon: 'doc', badge: requests.filter((r) => ['submitted','in_progress'].includes(r.status)).length },
-      { to: '/student/inquiries', label: 'Обращения', icon: 'inbox' },
       { to: '/student/map', label: 'Карта', icon: 'map' },
       { to: '/student/notifications', label: 'Уведомления', icon: 'bell', badge: unreadCount },
     ]

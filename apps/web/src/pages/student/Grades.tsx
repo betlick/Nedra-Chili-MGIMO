@@ -205,7 +205,7 @@ export function GradesPage() {
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>
             <p className="muted">Обратитесь к преподавателю дисциплины.</p>
-            <Button variant="surface" icon="file" onClick={() => navigate('/student/inquiries')}>
+            <Button variant="surface" icon="file" onClick={() => navigate('/student/requests?to=teacher')}>
               Написать преподавателю
             </Button>
           </section>

@@ -8100,3 +8100,64 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
 }
+
+/* ═════════ Обращения внутри «Заявок»: переписка карточками-сообщениями ═════════ */
+.card__count {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.thread-empty {
+  display: grid;
+  gap: 6px;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.thread-empty p {
+  margin: 0;
+}
+.thread__msgs {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.msg {
+  display: grid;
+  gap: 4px;
+  max-inline-size: 92%;
+  padding: 10px 14px;
+  border-radius: 6px 16px 16px 16px;
+  background: var(--surface-3);
+  justify-self: start;
+}
+.msg--me {
+  border-radius: 16px 6px 16px 16px;
+  background: var(--hl-soft);
+  justify-self: end;
+}
+.msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg__who {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.thread__reply {
+  display: grid;
+  gap: 8px;
+}
+.thread__reply .btn {
+  justify-self: start;
+}
+@media (max-width: 600px) {
+  .msg {
+    max-inline-size: 100%;
+  }
+  .thread__reply .btn {
+    justify-self: stretch;
+  }
+}
