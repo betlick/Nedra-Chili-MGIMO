@@ -1,8 +1,13 @@
 import { useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
+<<<<<<< HEAD
 import { ADMISSION, CREDIT, MARK_FROM, average, gradeLabel, markFor, pluralize } from '../../lib/format'
 import { GradesInsight } from '../../components/ai/GradesInsight'
+=======
+import { average, gradeLabel } from '../../lib/format'
+import { GradeForecast } from './GradeForecast'
+>>>>>>> origin/main
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -13,10 +18,13 @@ export function GradesPage() {
   const navigate = useNavigate()
   const { forMe } = useMaterials()
   const [selectedTerm,setTerm]=useState('')
+<<<<<<< HEAD
   const [goal,setGoal]=useState<'3'|'4'|'5'>('5')
   // «Сколько баллов до цели» свёрнут по умолчанию, как «Оформление» в профиле.
   const [goalOpen, setGoalOpen] = useState(false)
   const goalPanelId = useId()
+=======
+>>>>>>> origin/main
   const semesters=[...new Set(grades.map(g=>g.semester))].sort((a,b)=>b-a)
   const term=selectedTerm||String(semesters[0]??1)
   const all=grades.filter(g=>String(g.semester)===term)
@@ -33,6 +41,7 @@ export function GradesPage() {
     )
   }
   const avg = average(list.map((d) => d.score))
+<<<<<<< HEAD
   const admitted = list.filter((d) => d.score >= ADMISSION).length
   const exams = all.filter((d) => d.form === 'Экзамен').length
   const credits = all.length - exams
@@ -59,6 +68,12 @@ export function GradesPage() {
   ) : list[0] ? (
     <p>«{list[0].name}» — {list[0].score} {pluralize(list[0].score, 'балл', 'балла', 'баллов')}, допуск есть.{all.length > 1 ? ' Остальные баллы пока не выставлены.' : ''}</p>
   ) : null
+=======
+  const passed = list.filter((d) => d.score >= 40).length
+  const exams = all.filter((d) => d.form === 'Экзамен').length
+  const credits = all.length - exams
+  const weakest = [...list].sort((a, b) => a.score - b.score)[0]
+>>>>>>> origin/main
 
   return (
     <>
@@ -129,15 +144,15 @@ export function GradesPage() {
               <Ring value={avg} size={136} stroke={13} onAccent />
               <div>
                 <h2 className="card__title card__title--lg">Средний балл</h2>
-                <p className="small on-accent-2">Для допуска к сессии нужно не менее 50 баллов по каждой дисциплине.</p>
+                <p className="small on-accent-2">Проходной итоговый результат — 40 баллов. Условия допуска к экзамену уточняются отдельно.</p>
               </div>
             </div>
             <div className="tiles">
               <div className="tile">
                 <b className="display tile__value tile__value--hl">
-                  {admitted}/{all.length}
+                  {passed}/{all.length}
                 </b>
-                <span>допуск</span>
+                <span>проходной результат</span>
               </div>
               <div className="tile">
                 <b className="display tile__value">{exams}</b>
@@ -150,6 +165,7 @@ export function GradesPage() {
             </div>
           </section>
 
+<<<<<<< HEAD
           {attention && (isLatestTerm
             ? <GradesInsight scoresKey={list.map((d) => `${d.id}:${d.score}`).join('|')} fallback={attention} />
             : <section className="card card--hl">
@@ -198,6 +214,16 @@ export function GradesPage() {
               </div>
             </section>
           )}
+=======
+          {weakest && <section className="card card--hl">
+            <h2 className="card__title card__title--lg">Обратите внимание</h2>
+            <p>
+              «{weakest.name}» — {weakest.score} баллов: {weakest.score >= 40 ? (weakest.form === 'Зачёт' ? 'зачёт есть' : 'проходной результат есть') : 'пока ниже проходного порога'}, это самый низкий результат семестра.
+            </p>
+          </section>}
+
+          {all.length > 0 && <GradeForecast grades={all} />}
+>>>>>>> origin/main
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

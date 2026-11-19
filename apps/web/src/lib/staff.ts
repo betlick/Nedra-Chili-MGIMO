@@ -36,4 +36,4 @@ export function sortQueue(list: ApiStaffRequest[]) {
     .sort((a, b) => rank(a) - rank(b) || (rank(a) === 0 ? +new Date(a.createdAt) - +new Date(b.createdAt) : +new Date(b.updatedAt) - +new Date(a.updatedAt)))
 }
 
-export const KIND_LABEL: Record<ApiLessonKind, string> = { lecture: 'Лекция', seminar: 'Семинар', practice: 'Практика' }
+export const KIND_LABEL: Record<ApiLessonKind, string> = { lecture: 'Лекция', seminar: 'Практика', practice: 'Практика' }

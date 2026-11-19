@@ -187,7 +187,7 @@ function LessonDialog({ draft, sources, onClose, onSave }: { draft: Draft; sourc
         <Combo label="Предмет" inputRef={first} value={d.subject} maxLength={120} placeholder="Начните вводить название" options={sources.subjects.map((v) => ({ value: v }))} onChange={(v) => set('subject', v)} />
         <div className="field">
           <span className="field__label">Вид занятия</span>
-          <Segmented soft label="Вид занятия" value={d.kind} onChange={(v) => set('kind', v)} options={(Object.keys(KIND_LABEL) as ApiLessonKind[]).map((k) => ({ value: k, label: KIND_LABEL[k] }))} />
+          <Segmented soft label="Вид занятия" value={d.kind} onChange={(v) => set('kind', v)} options={(['lecture', 'practice'] as const).map((k) => ({ value: k, label: KIND_LABEL[k] }))} />
         </div>
         <div className="dialog__grid">
           <label className="field">
@@ -197,10 +197,17 @@ function LessonDialog({ draft, sources, onClose, onSave }: { draft: Draft; sourc
           <label className="field"><span className="field__label">Начало</span><input className="input" type="time" value={d.from} onChange={(e) => set('from', e.target.value)} /></label>
           <label className="field"><span className="field__label">Конец</span><input className="input" type="time" value={d.to} onChange={(e) => set('to', e.target.value)} /></label>
         </div>
-        <div className="dialog__grid dialog__grid--2">
-          <label className="field">Преподаватель<select className="input" value={d.teacherId} onChange={e=>setD(x=>({...x,teacherId:e.target.value,teacherName:sources.teachers.find(t=>t.id===e.target.value)?.name??''}))}><option value="">Выберите преподавателя</option>{sources.teachers.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <Combo label="Аудитория" value={d.room} maxLength={40} placeholder="ауд. 305" options={sources.rooms.map((v) => ({ value: v }))} onChange={(v) => set('room', v)} />
-        </div>
+        <section className="field" aria-label="Преподаватель занятия">
+          <label className="field">
+            <span className="field__label">Преподаватель занятия</span>
+            <select className="input" required value={d.teacherId} onChange={e=>setD(x=>({...x,teacherId:e.target.value,teacherName:sources.teachers.find(t=>t.id===e.target.value)?.name??''}))}>
+              <option value="">Выберите преподавателя</option>
+              {sources.teachers.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <p className="small muted">Выбранный преподаватель увидит занятие в своём расписании.</p>
+        </section>
+        <Combo label="Аудитория" value={d.room} maxLength={40} placeholder="ауд. 305" options={sources.rooms.map((v) => ({ value: v }))} onChange={(v) => set('room', v)} />
         <label className="field">
           <span className="field__label">Пометка для студентов (необязательно)</span>
           <input className="input" value={d.changeNote} maxLength={300} placeholder="Например: перенос с 09:00" onChange={(e) => set('changeNote', e.target.value)} />
@@ -373,7 +380,7 @@ export function StaffSchedulePage() {
     changeNote: '', repeat: true, until: semesterEnd(ymd(date)), following: false,
   })
   const edit = (l: ApiLesson): Draft => ({
-    id: l.id, groupId: l.groupId, groupName: group?.name ?? '', subject: l.subject, kind: l.kind, teacherId:l.teacherId??'', teacherName: l.teacherName, room: l.room,
+    id: l.id, groupId: l.groupId, groupName: group?.name ?? '', subject: l.subject, kind: l.kind === 'seminar' ? 'practice' : l.kind, teacherId:l.teacherId??'', teacherName: l.teacherName, room: l.room,
     date: moscowYmd(new Date(l.startsAt)), from: hhmm(l.startsAt), to: hhmm(l.endsAt), changeNote: l.changeNote ?? '', repeat: false, until: '', following: false,
   })
   const pickGroup = (g: ApiGroup) => { setGroup(g); setLessons([]); setParams({ group: g.id }, { replace: true }) }

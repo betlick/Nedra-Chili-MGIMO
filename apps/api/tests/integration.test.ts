@@ -75,12 +75,15 @@ test('end-to-end API: two students, two teachers, object isolation, atomic grade
         assert.deepEqual((await call(3, 'GET', '/api/inquiries')).json().data, []);
         assert.equal((await call(4, 'GET', '/api/inquiries')).statusCode, 403);
         assert.equal((await call(3, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Чужой ответ' })).statusCode, 404);
-        assert.equal((await call(0, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Подмена роли' })).statusCode, 403);
+        assert.equal((await call(1, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Чужой студент' })).statusCode, 404);
         assert.equal((await call(2, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Первый ответ' })).statusCode, 201);
+        assert.equal((await call(0, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Уточнение от студента' })).statusCode, 201);
+        assert.equal((await call(2, 'GET', '/api/inquiries')).json().data[0].status, 'new');
         assert.equal((await call(2, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Второй ответ' })).statusCode, 201);
-        assert.equal((await call(0, 'GET', '/api/inquiries')).json().data[0].replies.length, 2);
+        assert.equal((await call(0, 'GET', '/api/inquiries')).json().data[0].replies.length, 3);
         assert.equal((await call(2, 'PATCH', `/api/inquiries/${qid}`, { status: 'closed' })).statusCode, 200);
         assert.equal((await call(2, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Закрыто' })).statusCode, 409);
+        assert.equal((await call(0, 'POST', `/api/inquiries/${qid}/replies`, { text: 'Закрыто' })).statusCode, 409);
         assert.equal((await call(2, 'PATCH', `/api/inquiries/${qid}`, { status: 'progress' })).statusCode, 200);
         const [foreignNotice] = await c.db.insert(notifications).values({ studentId: studentB, kind: 'news', title: 'Личное уведомление', body: 'Тест' }).returning();
         const ownNotices = (await call(0, 'GET', '/api/notifications')).json().data;

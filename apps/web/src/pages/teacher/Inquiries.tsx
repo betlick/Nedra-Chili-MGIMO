@@ -65,9 +65,9 @@ export function InquiriesPage() {
             <Avatar initials={selected.initials} size={44} tone="neutral" />
             <p className="msg__bubble">{selected.message}</p>
           </div>
-          {selected.replies.map((r, i) => (
-            <div key={i} className="msg msg--mine">
-              <p className="msg__bubble">{r}</p>
+          {selected.replies.map((r) => (
+            <div key={r.id} className={`msg ${r.authorId !== selected.studentId ? 'msg--mine' : ''}`}>
+              <p className="msg__bubble" style={{ whiteSpace: 'pre-wrap' }}><b>{r.authorId === selected.studentId ? selected.student : 'Вы'} · {new Date(r.createdAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК</b><br />{r.text}</p>
             </div>
           ))}
 

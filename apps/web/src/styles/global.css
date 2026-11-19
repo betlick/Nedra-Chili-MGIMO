@@ -7989,6 +7989,33 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
 }
 
 /* ═════════ «Сколько баллов до цели» на странице предметов ═════════ */
+.forecast__subject,
+.forecast__fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.forecast__subject { margin: 18px 0 12px; }
+.forecast__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.forecast__fields .input { width: 100%; }
+.forecast__results { display: grid; gap: 10px; margin: 18px 0; }
+.forecast__result {
+  padding: 14px;
+  background: var(--surface-2);
+  border-radius: 14px;
+}
+.forecast__result p { margin: 6px 0 0; line-height: 1.5; }
+.forecast__error { color: var(--danger-ink); }
+@media (max-width: 560px) {
+  .forecast__fields { grid-template-columns: 1fr; }
+}
 .goal__list {
   list-style: none;
   margin: 14px 0 12px;

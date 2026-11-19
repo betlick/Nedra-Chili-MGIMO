@@ -44,8 +44,16 @@ test('schedule: only staff edits, overlap protection, search and student notific
     assert.equal((await call(2, 'POST', `/api/staff/groups/${groupId}/lessons`, { ...body, endsAt: body.startsAt })).statusCode, 400);
     assert.equal((await call(2, 'POST', `/api/staff/groups/${groupId}/lessons`, { ...body, kind: 'party' })).statusCode, 400);
     assert.equal((await call(2, 'POST', `/api/staff/groups/${randomUUID()}/lessons`, body)).statusCode, 404);
+    const importUrl = `/api/staff/groups/${groupId}/lessons/import`;
+    assert.equal((await call(0, 'POST', importUrl, { lessons: [body] })).statusCode, 403);
+    const batchFirst = { ...body, startsAt: '2030-01-08T09:00:00+03:00', endsAt: '2030-01-08T10:30:00+03:00' };
+    const batchConflict = { ...body, startsAt: '2030-01-08T10:00:00+03:00', endsAt: '2030-01-08T11:00:00+03:00' };
+    assert.equal((await call(2, 'POST', importUrl, { lessons: [batchFirst, batchConflict] })).statusCode, 409);
+    assert.equal((await call(2, 'GET', list)).json().data.lessons.length, 1, 'failed CSV batch rolls back every row');
+    assert.equal((await call(2, 'POST', importUrl, { lessons: [batchFirst] })).statusCode, 201);
+    assert.equal((await call(2, 'GET', list)).json().data.lessons.length, 2);
 
-    assert.equal((await call(2, 'GET', list)).json().data.lessons.length, 1);
+    assert.equal((await call(2, 'GET', list)).json().data.lessons.length, 2);
     const patched = await call(2, 'PATCH', `/api/staff/lessons/${lesson.id}`, { room: 'ауд. 2', changeNote: 'Перенос аудитории' });
     assert.equal(patched.statusCode, 200); assert.equal(patched.json().data.room, 'ауд. 2'); assert.equal(patched.json().data.changeNote, 'Перенос аудитории');
     assert.equal((await call(2, 'PATCH', `/api/staff/lessons/${lesson.id}`, { endsAt: '2030-01-07T08:00:00+03:00' })).statusCode, 400);
@@ -57,7 +65,7 @@ test('schedule: only staff edits, overlap protection, search and student notific
     assert.equal((await call(2, 'DELETE', `/api/staff/lessons/${lesson.id}`)).statusCode, 204);
     assert.equal((await call(2, 'DELETE', `/api/staff/lessons/${lesson.id}`)).statusCode, 204);
     assert.equal((await call(2, 'GET', list)).json().data.lessons[0].cancelled, true);
-    assert.equal((await c.db.select().from(notifications).where(eq(notifications.studentId, ids[0]!))).length, 3);
+    assert.equal((await c.db.select().from(notifications).where(eq(notifications.studentId, ids[0]!))).length, 4);
   } finally {
     await c.db.delete(lessons).where(eq(lessons.groupId, groupId));
     await c.db.delete(notifications).where(eq(notifications.studentId, ids[0]!));

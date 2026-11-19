@@ -166,7 +166,11 @@ function SheetEditor({ source }: { source: GradeSheet }) {
             <div className="progress-line">
               <span style={{ width: `${(total ? filled / total : 0) * 100}%` }} />
             </div>
+<<<<<<< HEAD
             <p className="small on-accent-2">Шкала: менее 40 — «2», 40–59 — «3», 60–79 — «4», от 80 — «5». Зачёт — от 40, допуск — от 50.</p>
+=======
+            <p className="small on-accent-2">Шкала: менее 40 — «2», 40–59 — «3», 60–79 — «4», от 80 — «5». Зачёт — от 40.</p>
+>>>>>>> origin/main
           </section>
 
           <section className="card">

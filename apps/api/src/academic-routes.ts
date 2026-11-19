@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { actor, assignmentAccess, assignmentFilter, assignmentsQuery, bodyObject, fail, studentsOf, textValue, uuid, type Authorize, type Db } from './domain.js';
-import { gradeEntries, groups, inquiries, inquiryReplies, notifications, teachingAssignments, users } from './schema.js';
+import { gradeEntries, groups, inquiries, inquiryReplies, lessons, notifications, teachingAssignments, users } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
 export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, push: PushService) {
     app.get('/api/gradebook/groups', async (req, reply) => {
@@ -66,7 +66,20 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, pu
             fail(403, 'Раздел доступен студенту');
         const assignments = await assignmentsQuery(db).where(assignmentFilter(u));
         const entries = await db.select().from(gradeEntries).where(eq(gradeEntries.studentId, id));
-        return { data: assignments.map(a => ({ id: a.id, name: a.subject, form: a.form, semester: a.semester, score: entries.find(e => e.assignmentId === a.id)?.score ?? null })) };
+        const scheduled = await db.select({ subjectId: lessons.subjectId, kind: lessons.kind, startsAt: lessons.startsAt })
+            .from(lessons).where(and(eq(lessons.groupId, u.groupId!), eq(lessons.cancelled, false)));
+        const now = new Date();
+        return { data: assignments.map(a => {
+            const rows = scheduled.filter(l => l.subjectId === a.subjectId);
+            return { id: a.id, name: a.subject, form: a.form, semester: a.semester,
+                score: entries.find(e => e.assignmentId === a.id)?.score ?? null,
+                lessonCounts: {
+                    lectures: rows.filter(l => l.kind === 'lecture').length,
+                    lecturesUpcoming: rows.filter(l => l.kind === 'lecture' && l.startsAt > now).length,
+                    practices: rows.filter(l => l.kind !== 'lecture').length,
+                    practicesUpcoming: rows.filter(l => l.kind !== 'lecture' && l.startsAt > now).length,
+                } };
+        }) };
     });
     app.get('/api/inquiries/teachers', async (req, reply) => {
         const id = await auth(req, reply);
@@ -133,19 +146,19 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, pu
         if (!id)
             return;
         const u = await actor(db, id);
-        if (u.role !== 'teacher')
-            fail(403, 'Ответ отправляет преподаватель');
+        if (u.role !== 'teacher' && u.role !== 'student')
+            fail(403, 'Ответ доступен участникам обращения');
         const text = textValue(bodyObject(req.body).text, 5000, 'Ответ');
         const pushed: PushNotice[] = [];
         const row = await db.transaction(async (tx) => {
-            const [r] = await tx.select().from(inquiries).where(and(eq(inquiries.id, uuid(req.params.id)), eq(inquiries.teacherId, id))).for('update');
+            const [r] = await tx.select().from(inquiries).where(and(eq(inquiries.id, uuid(req.params.id)), u.role === 'teacher' ? eq(inquiries.teacherId, id) : eq(inquiries.studentId, id))).for('update');
             if (!r)
                 fail(404, 'Обращение не найдено');
             if (r.status === 'closed')
                 fail(409, 'Сначала откройте обращение');
             const [answer] = await tx.insert(inquiryReplies).values({ inquiryId: r.id, authorId: id, text }).returning();
-            await tx.update(inquiries).set({ status: 'progress', updatedAt: new Date() }).where(eq(inquiries.id, r.id));
-            pushed.push(...await tx.insert(notifications).values({ studentId: r.studentId, kind: 'inquiry', title: 'Ответ преподавателя', body: r.subject }).returning());
+            await tx.update(inquiries).set({ status: u.role === 'student' ? 'new' : 'progress', updatedAt: new Date() }).where(eq(inquiries.id, r.id));
+            pushed.push(...await tx.insert(notifications).values({ studentId: u.role === 'student' ? r.teacherId : r.studentId, kind: 'inquiry', title: u.role === 'student' ? 'Ответ студента' : 'Ответ преподавателя', body: r.subject }).returning());
             return answer;
         });
         publishPush(push, pushed, app.log);

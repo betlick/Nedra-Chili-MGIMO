@@ -48,7 +48,7 @@ export function DataProvider({ children }: {
             setRequests(p => keep(p, rs.map(requestView)));
             setNotices(p => keep(p, ns.map(n => ({ id: n.id, title: n.title, text: n.body, time: dateLabel(n.createdAt), unread: !n.readAt, icon: n.kind === 'change' ? 'calendar' : n.kind === 'request' ? 'doc' : n.kind === 'inquiry' ? 'inbox' : 'bell', kind: n.kind, requestId: n.requestId ?? null }))));
             setPrefs(p => keep(p, ps));
-            setInquiries(p => keep(p, qs.map(q => ({ ...q, group: q.group ?? '—', initials: q.student.split(' ').slice(0, 2).map(n => n[0]).join(''), message: q.text, replies: q.replies.map(r => `${dateLabel(r.createdAt)} — ${r.text}`) }))));
+            setInquiries(p => keep(p, qs.map(q => ({ ...q, group: q.group ?? '—', initials: q.student.split(' ').slice(0, 2).map(n => n[0]).join(''), message: q.text }))));
             setSheets(p => keep(p, ss.map(s => ({ ...s, deadlineLabel: s.deadline ? dateLabel(s.deadline) : 'срок не задан' }))));
             setGrades(p => keep(p, gs));
             setError(null);

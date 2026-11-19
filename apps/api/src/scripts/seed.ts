@@ -35,6 +35,23 @@ const additionalTeachers = [
   { email: 'gromova.teacher@mukpid.ru', fullName: 'Громова Татьяна Игоревна (демо)', label: 'Громова Т. И.', subjects: ['Теория вероятностей'], department: 'Кафедра математики' },
   { email: 'krylov.teacher@mukpid.ru', fullName: 'Крылов Павел Сергеевич (демо)', label: 'Крылов П. С.', subjects: ['История России'], department: 'Кафедра истории' },
 ];
+const examSubjects = new Set(['Макроэкономика', 'Теория вероятностей', 'Проектирование интерфейсов']);
+const demoScores: Record<string, [number, number]> = {
+  'Макроэкономика': [64, 55],
+  'Английский язык': [47, 63],
+  'Основы вайб-кодинга': [78, 69],
+  'Теория вероятностей': [38, 42],
+  'История России': [56, 49],
+  'Проектирование интерфейсов': [72, 58],
+};
+const previousDemoScores: Record<string, [number, number]> = {
+  'Макроэкономика': [87, 74],
+  'Английский язык': [79, 91],
+  'Основы вайб-кодинга': [93, 82],
+  'Теория вероятностей': [72, 68],
+  'История России': [85, 76],
+  'Проектирование интерфейсов': [90, 88],
+};
 const connection = connectDatabase();
 try {
   const emails = [...fixtures.map(f => f.email), 'teacher@mukpid.ru', 'staff@staff.mukpid.ru'];
@@ -92,7 +109,9 @@ try {
         for (const fixture of fixtures) {
           const [group] = await tx.select().from(groups).where(eq(groups.name, fixture.group));
           if (!group) throw new Error(`Demo group missing: ${fixture.group}`);
-          await tx.insert(teachingAssignments).values({ teacherId: account.id, subjectId: discipline.id, groupId: group.id, semester: group.year * 2 - 1, form: 'Зачёт' }).onConflictDoNothing();
+          const form = examSubjects.has(subjectName) ? 'Экзамен' : 'Зачёт';
+          await tx.insert(teachingAssignments).values({ teacherId: account.id, subjectId: discipline.id, groupId: group.id, semester: group.year * 2 - 1, form })
+            .onConflictDoUpdate({ target: [teachingAssignments.subjectId, teachingAssignments.groupId, teachingAssignments.semester], set: { form } });
           await tx.update(lessons).set({ teacherId: account.id, teacherName: account.fullName }).where(and(eq(lessons.groupId, group.id), eq(lessons.subjectId, discipline.id), eq(lessons.teacherName, demo.label)));
         }
       }
@@ -123,6 +142,7 @@ try {
       const [assignment] = await tx.select().from(teachingAssignments).where(and(eq(teachingAssignments.teacherId, teacher.id), eq(teachingAssignments.groupId, group.id)));
       if (!assignment) throw new Error('Demo teaching assignment missing');
 
+<<<<<<< HEAD
       await tx.insert(gradeEntries).values({ assignmentId: assignment.id, studentId: student.id, score: index === 0 ? 87 : 74 })
         .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
       // Баллы по остальным дисциплинам группы: высокий, на грани допуска (45–55) и ниже 40.
@@ -136,6 +156,20 @@ try {
         const score = demoScores[a.subject];
         if (score !== undefined) await tx.insert(gradeEntries).values({ assignmentId: a.id, studentId: student.id, score })
           .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+=======
+      // Add fictional results for every demo discipline without changing existing grades.
+      const demoAssignments = await tx.select({ id: teachingAssignments.id, subject: subjects.name })
+        .from(teachingAssignments).innerJoin(subjects, eq(subjects.id, teachingAssignments.subjectId))
+        .where(eq(teachingAssignments.groupId, group.id));
+      for (const demoAssignment of demoAssignments) {
+        const score = demoScores[demoAssignment.subject]?.[index];
+        if (score === undefined) continue;
+        await tx.insert(gradeEntries).values({ assignmentId: demoAssignment.id, studentId: student.id, score })
+          .onConflictDoNothing({ target: [gradeEntries.assignmentId, gradeEntries.studentId] });
+        const previous = previousDemoScores[demoAssignment.subject]?.[index];
+        if (previous !== undefined) await tx.update(gradeEntries).set({ score })
+          .where(and(eq(gradeEntries.assignmentId, demoAssignment.id), eq(gradeEntries.studentId, student.id), eq(gradeEntries.score, previous)));
+>>>>>>> origin/main
       }
 
       const requestPurpose = index === 0 ? 'Для предъявления по месту требования (демо)' : 'Для оформления учебной льготы (демо)';

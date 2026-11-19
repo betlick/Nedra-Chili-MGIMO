@@ -198,7 +198,7 @@ function liveProgress(l: Lesson, now: Date) {
 }
 
 /* ── Недельная сетка: строки — пары, столбцы — дни ──────── */
-const KIND_CLASS: Record<Lesson['kind'], string> = { Лекция: 'lec', Семинар: 'sem', Практика: 'pra' }
+const KIND_CLASS: Record<Lesson['kind'], string> = { Лекция: 'lec', Практика: 'pra' }
 
 function GridCell({ l, who, live }: { l: Lesson; who: 'teacher' | 'group'; live: boolean }) {
   return (
