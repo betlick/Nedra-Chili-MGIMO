@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
 import { CREDIT, MARK_FROM, PASS, average, gradeLabel, markFor, pluralize } from '../../lib/format'
 import { GradesInsight } from '../../components/ai/GradesInsight'
-import { GradeForecast } from './GradeForecast'
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -200,7 +199,6 @@ export function GradesPage() {
             </section>
           )}
 
-          {all.length > 0 && <GradeForecast grades={all} />}
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>
