@@ -1,6 +1,6 @@
 import { dataApi, downloadFile, type ApiAssignment } from '../../lib/api'
 import { STATUS_LABEL } from '../../lib/staff'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useIndicator } from '../../lib/useIndicator'
 import { useSmoothHeight } from '../../lib/useSmoothHeight'
 import { useData } from '../../context/data'
@@ -9,13 +9,14 @@ import { REQUEST_STAGES, REQUEST_TYPES } from '../../data/mock'
 import type { Delivery, RequestType } from '../../types'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Segmented, Stages, ThemeButton } from '../../components/ui'
 import { RequestTypePicker } from '../../components/RequestTypePicker'
-import { Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { InquiryThreads } from '../../components/InquiryThreads'
 
 type Filter = 'all' | 'work' | 'ready'
 type Target = 'dean' | 'teacher'
 
 export function RequestsPage() {
-  const { requests, addRequest, cancelRequest, unreadCount, reload } = useData()
+  const { requests, addRequest, cancelRequest, unreadCount, reload, inquiries } = useData()
   const toast = useToast()
   const [processingMode, setProcessingMode] = useState<'staff'|'ai'>('staff')
   const [aiOptions,setAiOptions] = useState<{aiEnabled:boolean;aiTypes:RequestType[]}>({aiEnabled:false,aiTypes:[]})
@@ -26,7 +27,8 @@ export function RequestsPage() {
   const [delivery, setDelivery] = useState<Delivery>('pdf')
   const [filter, setFilter] = useState<Filter>('all')
   const [error, setError] = useState('')
-  const [target, setTarget] = useState<Target>('dean')
+  // /student/requests?to=teacher открывает вкладку обращений (по этой ссылке приходят из уведомлений и со старой страницы)
+  const [target, setTarget] = useState<Target>(() => (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('to') === 'teacher' ? 'teacher' : 'dean'))
   const [teacher, setTeacher] = useState('')
   const [teachers, setTeachers] = useState<ApiAssignment[]>([])
   const [teacherError, setTeacherError] = useState('')
@@ -41,6 +43,23 @@ export function RequestsPage() {
   }
 
   const [busy, setBusy] = useState(false)
+  // Переход из уведомления: /student/requests?id=… выделяет заявку и прокручивает к ней.
+  const [params] = useSearchParams()
+  const targetId = params.get('id')
+  const toParam = params.get('to')
+  useEffect(() => { if (toParam === 'teacher') setTarget('teacher') }, [toParam])
+  const scrolledTo = useRef<string | null>(null)
+  useEffect(() => {
+    if (!targetId || scrolledTo.current === targetId || !requests.some((r) => r.id === targetId)) return
+    scrolledTo.current = targetId
+    setFilter('all')
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`req-${targetId}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+      el.focus({ preventScroll: true })
+    })
+  }, [targetId, requests])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -177,6 +196,15 @@ export function RequestsPage() {
         </form>
 
         <section className="card">
+          {target === 'teacher' ? (
+            <>
+              <div className="card__head card__head--wrap">
+                <h2 className="card__title card__title--lg">Мои обращения{inquiries.length > 0 && <span className="card__count"> · {inquiries.length}</span>}</h2>
+              </div>
+              <InquiryThreads teachers={teachers} />
+            </>
+          ) : (
+            <>
           <div className="card__head card__head--wrap">
             <h2 className="card__title card__title--lg">Мои заявки</h2>
             <div ref={chipsInd.box} className="chips" role="radiogroup" aria-label="Фильтр">
@@ -195,11 +223,10 @@ export function RequestsPage() {
             </div>
           </div>
 
-          <Link to="/student/inquiries" className="link">Мои обращения к преподавателям</Link>
           {shown.length === 0 && <p className="muted">Здесь пока пусто.</p>}
           <div className="stack">
             {shown.map((r) => (
-              <article key={r.id} className="req">
+              <article key={r.id} id={`req-${r.id}`} className={`req ${r.id === targetId ? 'is-target' : ''}`} tabIndex={r.id === targetId ? -1 : undefined} aria-current={r.id === targetId ? 'true' : undefined}>
                 <div className="req__head">
                   <h3>{REQUEST_TYPES[r.type]}</h3>
                   <Badge tone={r.stage >= 2 ? 'ok' : 'neutral'}>{STATUS_LABEL[r.status]}</Badge>
@@ -232,6 +259,8 @@ export function RequestsPage() {
               </article>
             ))}
           </div>
+            </>
+          )}
         </section>
       </div>
       <Disclaimer />

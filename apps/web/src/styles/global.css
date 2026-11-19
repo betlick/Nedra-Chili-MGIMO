@@ -8050,3 +8050,122 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
 .request-topic.is-selected { border-color:#e8b940;box-shadow:inset 0 0 0 1px #e8b940; }
 .request-topic:focus-visible {outline:2px solid #e8b940;outline-offset:1px;}
 @media(max-width:480px){.request-topic-grid{grid-template-columns:1fr;}}
+/* «Сколько баллов до цели» — раскрывающийся блок по образцу «Оформления» (.collapse) */
+.goal.collapse .goal__list {
+  margin: 0;
+}
+.goal.collapse .seg {
+  align-self: flex-start;
+}
+
+/* ═════════ Разбор успеваемости ИИ ═════════
+   Пометка «Разбор ИИ» берёт цвет текста окружения, поэтому читается на лимонной карточке (card--hl) во всех темах. */
+.badge.ai-mark {
+  background: transparent;
+  color: inherit;
+  border: 1.5px solid currentColor;
+  height: 22px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.ai-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ═════════ Смена вида заявки и переход из уведомления ═════════ */
+.type-change {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.type-change__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.type-change__select {
+  flex: 1 1 200px;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  font-size: 16px;
+}
+.attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-inline-start: 18px;
+  list-style: disc;
+}
+/* заявка, открытая из уведомления */
+.req.is-target {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+/* ═════════ Обращения внутри «Заявок»: переписка карточками-сообщениями ═════════ */
+.card__count {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.thread-empty {
+  display: grid;
+  gap: 6px;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.thread-empty p {
+  margin: 0;
+}
+.thread__msgs {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.msg {
+  display: grid;
+  gap: 4px;
+  max-inline-size: 92%;
+  padding: 10px 14px;
+  border-radius: 6px 16px 16px 16px;
+  background: var(--surface-3);
+  justify-self: start;
+}
+.msg--me {
+  border-radius: 16px 6px 16px 16px;
+  background: var(--hl-soft);
+  justify-self: end;
+}
+.msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.msg__who {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.thread__reply {
+  display: grid;
+  gap: 8px;
+}
+.thread__reply .btn {
+  justify-self: start;
+}
+@media (max-width: 600px) {
+  .msg {
+    max-inline-size: 100%;
+  }
+  .thread__reply .btn {
+    justify-self: stretch;
+  }
+}

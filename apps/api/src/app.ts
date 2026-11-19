@@ -15,11 +15,14 @@ import { connectDatabase } from './db.js';
 import { requestRoutes } from './request-routes.js';
 import { createPush } from './push.js';
 import { scheduleRoutes } from './schedule-routes.js';
+import { aiRoutes, type AiDeps } from './ai/routes.js';
+import { createProvider } from './ai/provider.js';
+import { createLimiter } from './ai/limit.js';
 import { groups, sessions, users } from './schema.js';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const lifetime = 8 * 60 * 60;
-export function buildApp(options: { logger?: boolean; origin?: string; secureCookies?: boolean } = {}) {
+export function buildApp(options: { logger?: boolean; origin?: string; secureCookies?: boolean; ai?: Partial<AiDeps> } = {}) {
   const secret = process.env.JWT_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32) throw new Error('JWT_SECRET must contain at least 32 bytes');
   const key = new TextEncoder().encode(secret);
@@ -42,6 +45,13 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   const connection = connectDatabase({ onBackgroundError: code => app.log.warn({ code }, 'Database background connection error') });
   const db = connection.db;
   const push = createPush(db, app.log);
+  let provider: AiDeps['provider'] = null;
+  if (options.ai && 'provider' in options.ai) provider = options.ai.provider ?? null;
+  else try { provider = createProvider(); } catch (e) {
+    // Неверная настройка ИИ не должна ронять деканат: функции просто работают без подсказок.
+    app.log.warn({ ai: 'config' }, e instanceof Error ? e.message : 'AI provider is not configured');
+  }
+  const aiDeps: AiDeps = { provider, limiter: options.ai?.limiter ?? createLimiter(Number(process.env.AI_LIMIT_PER_HOUR) || 20), timeoutMs: options.ai?.timeoutMs ?? 10_000 };
   const dummyHash = hash(randomBytes(32), { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
   const error = (code: string, message: string) => ({ error: { code, message } });
   app.register(cookie);
@@ -83,6 +93,7 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   notificationRoutes(app, db, authorize('*'), push);
   requestRoutes(app, db, authorize('student'), authorize('staff'), push);
   scheduleRoutes(app, db, authorize('staff'), authorize('*'), push);
+  aiRoutes(app, db, authorize('*'), aiDeps);
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/ready', async (_req, reply) => {
     try {

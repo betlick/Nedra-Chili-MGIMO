@@ -67,8 +67,13 @@ export function NotificationsPage() {
                   <p>{n.text}</p>
                   <span className="small muted">{n.time === 'Сегодня, 08:30' ? '11 ноября 2026, 08:30' : n.time === 'Вчера, 18:10' ? '10 ноября 2026, 18:10' : n.time}</span>
                 </div>
-                {(n.kind === 'inquiry' || n.unread) && (
+                {(n.kind === 'inquiry' || n.unread || (isStudent && n.requestId)) && (
                   <div className="notice__actions">
+                    {isStudent && n.requestId && (
+                      <Link className="btn btn--ghost btn--sm" to={`/student/requests?id=${n.requestId}`} onClick={() => n.unread && void markRead(n.id)}>
+                        Открыть заявку
+                      </Link>
+                    )}
                     {n.kind === 'inquiry' && (
                       <Link className="btn btn--ghost btn--sm" to={`/${user.role}/inquiries`} onClick={() => n.unread && void markRead(n.id)}>
                         Открыть

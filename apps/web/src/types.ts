@@ -67,6 +67,8 @@ export interface Notice {
   accent?: boolean
   /** тип события — для перехода к нужному разделу */
   kind?: string
+  /** заявка, к которой относится уведомление (новые уведомления о заявках) */
+  requestId?: string | null
 }
 
 export interface NotifyPrefs {

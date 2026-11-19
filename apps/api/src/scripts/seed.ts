@@ -1,6 +1,6 @@
 import { hash, argon2id } from 'argon2';
 import { randomBytes } from 'node:crypto';
-import { connectDatabase } from '../db.js';
+import { connectDatabase, databaseErrorCode } from '../db.js';
 import { and, eq, isNull } from 'drizzle-orm';
 
 // День недели (0 = пн), начало, конец, предмет, вид, преподаватель, аудитория. Все данные вымышлены.
@@ -209,6 +209,10 @@ try {
     }
   });
   console.log('Demo users, lessons, assignments, grades, requests, inquiries, materials and notifications ready. Existing users, passwords and records preserved.');
+} catch (error) {
+  const cause = error && typeof error === 'object' && 'cause' in error ? error.cause : error;
+  console.error('Demo seed failed:', databaseErrorCode(cause));
+  process.exitCode = 1;
 } finally {
   await connection.close();
 }

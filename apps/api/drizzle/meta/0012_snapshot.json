@@ -1,5 +1,5 @@
 {
-  "id": "f1bf8f6b-fc50-4dfa-ba9f-d64545962b10",
+  "id": "de53c8f5-566d-4cfc-b76e-dbac185a5011",
   "prevId": "7ca9ea98-cfea-457b-8aa6-d476b594b107",
   "version": "7",
   "dialect": "postgresql",
@@ -900,6 +900,12 @@
           "notNull": true,
           "default": "'request'"
         },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "title": {
           "name": "title",
           "type": "text",
@@ -955,6 +961,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "notifications_request_id_requests_id_fk": {
+          "name": "notifications_request_id_requests_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "requests",
+          "columnsFrom": [
+            "request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1061,19 +1080,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "processing_mode": {
-          "name": "processing_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'staff'"
-        },
-        "ai_note": {
-          "name": "ai_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "processed_by": {
           "name": "processed_by",
           "type": "uuid",
@@ -1118,6 +1124,24 @@
         },
         "previewed_at": {
           "name": "previewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_type": {
+          "name": "previous_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_changed_by": {
+          "name": "type_changed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_changed_at": {
+          "name": "type_changed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -1221,6 +1245,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "verified_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "requests_type_changed_by_users_id_fk": {
+          "name": "requests_type_changed_by_users_id_fk",
+          "tableFrom": "requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "type_changed_by"
           ],
           "columnsTo": [
             "id"
