@@ -49,7 +49,7 @@ export function academicRoutes(app: FastifyInstance, db: Db, auth: Authorize, pu
                 if ((existing.find(e => e.studentId === s.studentId)?.score ?? null) === s.score)
                     continue;
                 await tx.insert(gradeEntries).values({ ...s, assignmentId: a.id }).onConflictDoUpdate({ target: [gradeEntries.assignmentId, gradeEntries.studentId], set: { score: s.score, updatedAt: new Date() } });
-                pushed.push(...await tx.insert(notifications).values({ studentId: s.studentId, kind: 'grade', title: 'Оценка обновлена', body: `${a.subject}: ${s.score === null ? 'балл снят' : s.score + ' баллов'}.` }).returning());
+                pushed.push(...await tx.insert(notifications).values({ studentId: s.studentId, kind: 'grade', title: 'Оценка обновлена', body: `${a.subject}, семестр ${a.semester}: ${existing.find(e => e.studentId === s.studentId)?.score ?? 'не выставлен'} → ${s.score === null ? 'балл снят' : s.score + ' баллов'}.` }).returning());
             }
             await tx.update(teachingAssignments).set({ version: a.version + 1 }).where(eq(teachingAssignments.id, a.id));
             return a.version + 1;

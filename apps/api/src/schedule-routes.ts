@@ -1,3 +1,4 @@
+import { lessonDescription, lessonChange } from './smart-notices.js';
 import type { FastifyInstance } from 'fastify';
 import { and, asc, eq, gt, lt, ne, or, ilike, sql } from 'drizzle-orm';
 import { actor, bodyObject, fail, instant, textValue, uuid, type Authorize, type Db, type DbSession } from './domain.js';
@@ -116,7 +117,7 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             const v = await values(tx, b);
             await checkOverlap(tx, groupId, v);
             const [r] = await tx.insert(lessons).values({ ...v, groupId }).returning();
-            await notify(tx, groupId, 'Расписание изменено', 'Добавлено занятие. Откройте расписание группы.', pushed);
+            await notify(tx, groupId, 'Добавлено занятие', lessonDescription((await rowQuery(tx).where(eq(lessons.id, r.id)))[0]!), pushed);
             return (await rowQuery(tx).where(eq(lessons.id, r.id)))[0];
         });
         publishPush(push, pushed, app.log);
@@ -138,18 +139,20 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             await tx.execute(sql `select pg_advisory_xact_lock(746001)`);
             const [group] = await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, groupId));
             if (!group) fail(404, 'Группа не найдена');
+            const descriptions: string[] = [];
             for (const [index, row] of rows.entries()) {
                 try {
                     const lesson = await values(tx, row);
                     await checkOverlap(tx, groupId, lesson);
-                    await tx.insert(lessons).values({ ...lesson, groupId });
+                    const [added] = await tx.insert(lessons).values({ ...lesson, groupId }).returning();
+                    descriptions.push(lessonDescription((await rowQuery(tx).where(eq(lessons.id, added!.id)))[0]!));
                 } catch (error) {
                     if (error && typeof error === 'object' && 'statusCode' in error && typeof error.statusCode === 'number')
                         fail(error.statusCode, `Строка ${index + 1}: ${error instanceof Error ? error.message : 'ошибка занятия'}`);
                     throw error;
                 }
             }
-            await notify(tx, groupId, 'Расписание изменено', 'Загружены занятия из CSV. Откройте расписание группы.', pushed);
+            await notify(tx, groupId, 'Расписание изменено', `Добавлено занятий: ${rows.length}. ${descriptions.join('. ')}`, pushed);
         });
         publishPush(push, pushed, app.log);
         return reply.code(201).send({ data: { added: rows.length } });
@@ -173,10 +176,13 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
                 fail(404, 'Занятие не найдено');
             if (r.cancelled)
                 fail(409, 'Занятие отменено');
+            const before = (await rowQuery(tx).where(eq(lessons.id, id)))[0]!;
             const v = await values(tx, b, r);
             await checkOverlap(tx, r.groupId, v, id);
             await tx.update(lessons).set(v).where(eq(lessons.id, id));
-            await notify(tx, r.groupId, 'Расписание изменено', 'Обновлено занятие. Откройте расписание группы.', pushed);
+            const after = (await rowQuery(tx).where(eq(lessons.id, id)))[0]!;
+            const change = lessonChange(before, after);
+            if (change) await notify(tx, r.groupId, +before.startsAt !== +after.startsAt || +before.endsAt !== +after.endsAt ? 'Занятие перенесено' : 'Занятие изменено', change, pushed);
             return (await rowQuery(tx).where(eq(lessons.id, id)))[0];
         });
         publishPush(push, pushed, app.log);
@@ -198,7 +204,7 @@ export function scheduleRoutes(app: FastifyInstance, db: Db, staff: Authorize, a
             if (r.cancelled)
                 return;
             await tx.update(lessons).set({ cancelled: true }).where(eq(lessons.id, r.id));
-            await notify(tx, r.groupId, 'Занятие отменено', 'Изменилось расписание. Отменённое занятие сохранено в истории.', pushed);
+            await notify(tx, r.groupId, 'Занятие отменено', `${lessonDescription((await rowQuery(tx).where(eq(lessons.id, r.id)))[0]!)}. Занятие отменено.`, pushed);
         });
         publishPush(push, pushed, app.log);
         return reply.code(204).send();

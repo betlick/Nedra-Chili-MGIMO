@@ -25,6 +25,8 @@ test('all new routes reject missing or forged sessions and enforce CSRF before d
         string,
         object?
     ][] = [
+        ['GET', '/api/requests/options'],
+        ['POST', '/api/requests', {type:'study',purpose:'Демо',delivery:'pdf',processingMode:'ai'}],
         ['GET', '/api/notifications'], ['PATCH', '/api/notifications/read-all'], ['PATCH', `/api/notifications/${id}/read`],
         ['GET', '/api/push/config'], ['POST', '/api/push/subscriptions', {}], ['DELETE', '/api/push/subscriptions', {}],
         ['GET', '/api/user/prefs'], ['PATCH', '/api/user/prefs', { schedule: false }], ['GET', '/api/gradebook/groups'], ['PUT', `/api/gradebook/${id}`, { version: 0, scores: [] }], ['GET', '/api/grades'],

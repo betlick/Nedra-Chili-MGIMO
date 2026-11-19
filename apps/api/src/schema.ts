@@ -61,6 +61,8 @@ export const requests = pgTable('requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   studentId: uuid('student_id').notNull().references(() => users.id),
   type: text('type').notNull(),
+  processingMode: text('processing_mode').notNull().default('staff'),
+  aiNote: text('ai_note'),
   processedBy: uuid('processed_by').references(() => users.id),
   readyAt: timestamp('ready_at', { withTimezone: true }),
   rejectionReason: text('rejection_reason'),

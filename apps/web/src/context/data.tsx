@@ -18,7 +18,7 @@ interface Data {
     loading: boolean;
     error: string | null;
     reload: () => Promise<void>;
-    addRequest: (r: Pick<StudentRequest, 'type' | 'purpose' | 'comment' | 'delivery'>) => Promise<boolean>;
+    addRequest: (r: Pick<StudentRequest, 'type' | 'purpose' | 'comment' | 'delivery' | 'processingMode'>) => Promise<boolean>;
     cancelRequest: (id: string) => Promise<boolean>;
     markRead: (id: string) => Promise<boolean>;
     markAllRead: () => Promise<boolean>;

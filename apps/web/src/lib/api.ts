@@ -51,6 +51,8 @@ export const authApi = {
 /* ── Кабинет сотрудника деканата ─────────────────────────── */
 export type ApiRequestStatus = 'submitted' | 'in_progress' | 'ready' | 'rejected' | 'issued' | 'cancelled'
 export interface ApiStaffRequest {
+  processingMode: 'staff'|'ai'
+  aiNote: string|null
   id: string
   studentId: string
   type: RequestType
@@ -124,6 +126,7 @@ export interface ApiInquiry {id:string;studentId:string;teacherId:string;assignm
 export interface ApiMaterial {id:string;assignmentId:string;title:string;fileName:string;mimeType:string;size:number;createdAt:string;subject:string;group:string}
 export interface ApiPrefs {deadlines:boolean;schedule:boolean;news:boolean}
 export const dataApi = {
+  requestOptions:()=>request<{aiEnabled:boolean;aiTypes:RequestType[]}>('/api/requests/options'),
   requests:()=>request<ApiStaffRequest[]>('/api/requests'),
   addRequest:(input:object)=>request<ApiStaffRequest>('/api/requests','POST',input),
   cancelRequest:(id:string)=>request<ApiStaffRequest>(`/api/requests/${id}/cancel`,'PATCH'),

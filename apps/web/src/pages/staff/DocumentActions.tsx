@@ -19,6 +19,7 @@ export function DocumentActions({ row, reload }: {
     if (!['submitted', 'in_progress'].includes(row.status))
         return row.rejectionReason ? <p>Причина отказа: {row.rejectionReason}</p> : null;
     return <div className="stack">
+    {row.processingMode === 'ai' && <details open><summary>Подготовлено с YandexGPT · проверьте сведения</summary><p className="small" style={{whiteSpace:'pre-wrap'}}>{row.aiNote}</p></details>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {row.type === 'study' && row.status === 'in_progress' && <>
       <p className="small">{row.faculty ?? 'Факультет не указан'} · {row.program ?? 'Направление не указано'} · курс {row.year ?? 'не указан'} · {row.groupName ?? 'группа не указана'}</p>

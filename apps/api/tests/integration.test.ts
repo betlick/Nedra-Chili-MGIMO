@@ -14,6 +14,9 @@ test('end-to-end API: two students, two teachers, object isolation, atomic grade
     const csrf = { 'x-csrf-protection': '1', origin: 'http://localhost:5173' };
     const call = (i: number, method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', url: string, payload?: object) => app.inject({ method, url, headers: { ...csrf, cookie: cookies[i]! }, payload });
     try {
+        const ready = await app.inject({method:'GET',url:'/ready'});
+        assert.equal(ready.statusCode,200);
+        assert.deepEqual(ready.json(),{status:'ready'});
         await c.db.insert(groups).values(groupIds.map((id, i) => ({ id, name: `INTEGRATION-${suffix}-${i}`, faculty: 'Вымышленный факультет', program: 'Учебная программа', year: 1 })));
         await c.db.insert(users).values(ids.map((id, i) => ({ id, email: `integration-${suffix}-${i}@example.test`, fullName: `Вымышленный пользователь ${i}`, faculty: 'Учебный факультет', role: i < 2 ? 'student' : i < 4 ? 'teacher' : 'staff', groupId: i < 2 ? groupIds[i] : null, passwordHash })));
         await c.db.insert(subjects).values({ id: subjectId, name: `Учебная дисциплина ${suffix}` });

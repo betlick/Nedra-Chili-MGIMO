@@ -39,7 +39,7 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   const name = secure ? '__Host-session' : 'session';
   const cookieOptions = { path: '/', httpOnly: true, secure, sameSite: 'lax' as const };
   const app = Fastify({ logger: options.logger ?? true, bodyLimit: 16384 });
-  const connection = connectDatabase();
+  const connection = connectDatabase({ onBackgroundError: code => app.log.warn({ code }, 'Database background connection error') });
   const db = connection.db;
   const push = createPush(db, app.log);
   const dummyHash = hash(randomBytes(32), { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
@@ -84,6 +84,14 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   requestRoutes(app, db, authorize('student'), authorize('staff'), push);
   scheduleRoutes(app, db, authorize('staff'), authorize('*'), push);
   app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/ready', async (_req, reply) => {
+    try {
+      await connection.check();
+      return { status: 'ready' };
+    } catch {
+      return reply.code(503).send({ status: 'unavailable' });
+    }
+  });
   app.post<{ Body: { email: string; password: string } }>('/api/auth/login', {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     schema: { body: { type: 'object', required: ['email', 'password'], additionalProperties: false,

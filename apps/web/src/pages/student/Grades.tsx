@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../../context/data'
 import { average, gradeLabel } from '../../lib/format'
-import { GradeForecast } from './GradeForecast'
 import { SubjectMaterials, openSubject } from './SubjectMaterials'
 import { useMaterials } from '../../context/materials'
 import { Badge, Button, Disclaimer, IconButton, PageHeader, Ring, ScoreBar, Segmented, ThemeButton } from '../../components/ui'
@@ -130,7 +129,6 @@ export function GradesPage() {
             </p>
           </section>}
 
-          {all.length > 0 && <GradeForecast grades={all} />}
 
           <section className="card">
             <h2 className="card__title card__title--lg">Баллы отображаются неверно?</h2>

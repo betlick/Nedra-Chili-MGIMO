@@ -17,6 +17,9 @@ type Target = 'dean' | 'teacher'
 export function RequestsPage() {
   const { requests, addRequest, cancelRequest, unreadCount, reload } = useData()
   const toast = useToast()
+  const [processingMode, setProcessingMode] = useState<'staff'|'ai'>('staff')
+  const [aiOptions,setAiOptions] = useState<{aiEnabled:boolean;aiTypes:RequestType[]}>({aiEnabled:false,aiTypes:[]})
+  useEffect(()=>{let live=true;dataApi.requestOptions().then(v=>{if(live)setAiOptions(v)}).catch(()=>{});return()=>{live=false}},[])
   const [type, setType] = useState<RequestType>('study')
   const [purpose, setPurpose] = useState('')
   const [comment, setComment] = useState('')
@@ -64,7 +67,7 @@ export function RequestsPage() {
     }
     if (type === 'other' && !comment.trim()) return setCommentError('Опишите, что нужно, — иначе деканат не поймёт обращение')
     setBusy(true)
-    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery })
+    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery, processingMode })
     setBusy(false)
     if (!ok) return
     setPurpose('')
@@ -109,7 +112,10 @@ export function RequestsPage() {
           {target === 'dean' && (
           <div className="field">
             <span className="field__label" id="req-type-label">Что нужно оформить</span>
-            <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" />
+            <Segmented label="Обработка заявки" value={processingMode} onChange={(mode:'staff'|'ai')=>{setProcessingMode(mode);if(mode==='ai'&&!aiOptions.aiTypes.includes(type))setType(aiOptions.aiTypes[0]??'study')}} options={[{value:'staff',label:'Сотрудник'},{value:'ai',label:'ИИ · YandexGPT'}]} />
+            <p className="small muted">{processingMode==='ai' ? 'ИИ подготовит подсказку по заполнению. Решение и выдача документа — после проверки сотрудником.' : 'Все 16 тем и «Другое». Заявку проверит сотрудник деканата.'}</p>
+            {processingMode==='ai'&&!aiOptions.aiEnabled&&<p className="field__error">YandexGPT пока не настроен. Выберите сотрудника.</p>}
+            <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" allowed={processingMode==='ai'?aiOptions.aiTypes:undefined} />
           </div>
           )}
 
@@ -165,8 +171,8 @@ export function RequestsPage() {
           </div>
           </div>
 
-          <Button disabled={busy} type="submit" variant="primary" size="lg" block>
-            {target === 'teacher' ? 'Отправить обращение' : 'Отправить заявку'}
+          <Button disabled={busy || (target==='dean' && processingMode==='ai' && !aiOptions.aiEnabled)} type="submit" variant="primary" size="lg" block>
+            {busy ? 'Обрабатываем…' : target === 'teacher' ? 'Отправить обращение' : processingMode==='ai' ? 'Подготовить с ИИ и отправить' : 'Отправить заявку'}
           </Button>
         </form>
 
@@ -201,7 +207,8 @@ export function RequestsPage() {
                 <p className="small muted">
                   {r.purpose} · подана {r.createdLabel} · {r.delivery === 'pdf' ? 'PDF' : 'в деканате'}
                 </p>
-                {!['cancelled','rejected'].includes(r.status) && <Stages stages={REQUEST_STAGES} current={r.stage} />}
+                {r.aiNote && <details><summary>Подсказка ИИ · требует проверки</summary><p style={{whiteSpace:'pre-wrap'}}>{r.aiNote}</p></details>}
+                  {!['cancelled','rejected'].includes(r.status) && <Stages stages={REQUEST_STAGES} current={r.stage} />}
                 {r.rejectionReason && <p role="alert">Причина отказа: {r.rejectionReason}</p>}
                 {r.comment && <blockquote className="req__comment">«{r.comment}»</blockquote>}
                 <div className="req__actions">

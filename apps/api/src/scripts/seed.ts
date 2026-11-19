@@ -37,12 +37,16 @@ const additionalTeachers = [
 ];
 const examSubjects = new Set(['Макроэкономика', 'Теория вероятностей', 'Проектирование интерфейсов']);
 const demoScores: Record<string, [number, number]> = {
-  'Макроэкономика': [64, 55],
-  'Английский язык': [47, 63],
-  'Основы вайб-кодинга': [78, 69],
-  'Теория вероятностей': [38, 42],
-  'История России': [56, 49],
-  'Проектирование интерфейсов': [72, 58],
+  'Макроэкономика': [32, 28],
+  'Английский язык': [24, 36],
+  'Основы вайб-кодинга': [38, 33],
+  'Теория вероятностей': [18, 22],
+  'История России': [26, 31],
+  'Проектирование интерфейсов': [35, 29],
+};
+const intermediateDemoScores: Record<string, [number, number]> = {
+  'Макроэкономика':[64,55], 'Английский язык':[47,63], 'Основы вайб-кодинга':[78,69],
+  'Теория вероятностей':[38,42], 'История России':[56,49], 'Проектирование интерфейсов':[72,58],
 };
 const previousDemoScores: Record<string, [number, number]> = {
   'Макроэкономика': [87, 74],
@@ -154,6 +158,25 @@ try {
         const previous = previousDemoScores[demoAssignment.subject]?.[index];
         if (previous !== undefined) await tx.update(gradeEntries).set({ score })
           .where(and(eq(gradeEntries.assignmentId, demoAssignment.id), eq(gradeEntries.studentId, student.id), eq(gradeEntries.score, previous)));
+      }
+
+      for (const demoAssignment of demoAssignments) {
+        const previous=intermediateDemoScores[demoAssignment.subject]?.[index], score=demoScores[demoAssignment.subject]?.[index];
+        if(previous!==undefined && score!==undefined) await tx.update(gradeEntries).set({score}).where(and(eq(gradeEntries.assignmentId,demoAssignment.id),eq(gradeEntries.studentId,student.id),eq(gradeEntries.score,previous)));
+      }
+      // Stable synthetic roster: 24 additional students plus the original demo account.
+      for (let number=2; number<=25; number++) {
+        const email=`demo.g${index+1}.s${String(number).padStart(2,'0')}@edu.mukpid.ru`;
+        let [account]=await tx.select().from(users).where(eq(users.email,email));
+        if(!account) {
+          const passwordHash=await hash(randomBytes(32).toString('hex'),{type:argon2id,memoryCost:19456,timeCost:2,parallelism:1});
+          [account]=await tx.insert(users).values({email,role:'student',groupId:group.id,faculty:fixture.faculty,fullName:`Демостудент ${index+1}-${String(number).padStart(2,'0')} Примеров Учебный`,passwordHash}).returning();
+        }
+        if(account.role!=='student'||account.groupId!==group.id) throw new Error('Demo roster account mismatch');
+        for (const [subjectIndex,a] of demoAssignments.entries()) {
+          const score=(number+subjectIndex)%9===0?null:12+(number*7+subjectIndex*11+index*13)%57;
+          await tx.insert(gradeEntries).values({assignmentId:a.id,studentId:account.id,score}).onConflictDoNothing({target:[gradeEntries.assignmentId,gradeEntries.studentId]});
+        }
       }
 
       const requestPurpose = index === 0 ? 'Для предъявления по месту требования (демо)' : 'Для оформления учебной льготы (демо)';

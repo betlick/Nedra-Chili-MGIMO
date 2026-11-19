@@ -1,16 +1,19 @@
+import { requestNotice } from './smart-notices.js';
+import { AI_REQUEST_TYPES, aiConfigured, prepareAiNote } from './request-ai.js';
 import { REQUEST_TYPE_IDS } from './request-types.js';
 import { randomUUID } from 'node:crypto';
 import { bodyObject, fail, uuid, type DbSession } from './domain.js';
 import type { DocumentSnapshot } from './schema.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type { connectDatabase } from './db.js';
 import { requestPdf } from './request-pdf.js';
 import { notifications, requests, users, groups } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
 
-type Input = { type: string; purpose: string; comment?: string; delivery: string };
+type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai' };
 export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService) {
+  const aiWindows = new Map<string, {start:number; count:number}>();
   const publicRow = ({ documentBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => row;
   async function snapshot(tx: DbSession, row: typeof requests.$inferSelect): Promise<DocumentSnapshot> {
     const [u] = await tx.select({ fullName:users.fullName, faculty:users.faculty, groupId:users.groupId }).from(users).where(eq(users.id,row.studentId)).for('share');
@@ -23,6 +26,10 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     return { ...p, program:p.program!, year:p.year!, groupName:p.groupName!, purpose:row.purpose, templateVersion:'study-v2' };
   }
   const failure = (code: string, message: string) => ({ error: { code, message } });
+  app.get('/api/requests/options', async (req, reply) => {
+    if (!await student(req, reply)) return;
+    return {data:{aiEnabled:aiConfigured(),aiTypes:AI_REQUEST_TYPES}};
+  });
   app.get('/api/requests', async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
     return { data: (await db.select().from(requests).where(eq(requests.studentId, id)).orderBy(desc(requests.createdAt), desc(requests.id))).map(publicRow) };
@@ -33,14 +40,24 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       purpose: { type: 'string', minLength: 1, maxLength: 500 },
       comment: { type: 'string', maxLength: 2000 },
       delivery: { type: 'string', enum: ['pdf', 'office'] },
+      processingMode: {type:'string',enum:['staff','ai']},
     } } },
   }, async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
     if (!req.body.purpose.trim()) return reply.code(400).send(failure('BAD_REQUEST', 'Укажите цель заявки'));
     const pushed: PushNotice[] = [];
+    const mode = req.body.processingMode ?? 'staff';
+    if (mode === 'ai') {
+      const now=Date.now();
+      for (const [key, value] of aiWindows) if(now-value.start>=60000) aiWindows.delete(key);
+      const window=aiWindows.get(id)??{start:now,count:0};
+      if(window.count>=5) fail(429,'Не более пяти ИИ-заявок в минуту');
+      window.count++; aiWindows.set(id,window);
+    }
+    const aiNote = mode === 'ai' ? await prepareAiNote(req.body) : null;
     const result = await db.transaction(async tx => {
-      const [row] = await tx.insert(requests).values({ studentId: id, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
-      pushed.push(...await tx.insert(notifications).values({ studentId: id, title: 'Заявка принята', body: 'Заявка зарегистрирована в деканате.' }).returning());
+      const [row] = await tx.insert(requests).values({ studentId: id, processingMode: mode, aiNote, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
+      pushed.push(...await tx.insert(notifications).values({ studentId: id, ...requestNotice(row!, null, 'submitted') }).returning());
       return row;
     });
     publishPush(push, pushed, app.log);
@@ -50,13 +67,18 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } },
   }, async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
-    const [row] = await db.select().from(requests).where(eq(requests.id, req.params.id));
-    if (!row) return reply.code(404).send(failure('NOT_FOUND', 'Заявка не найдена'));
-    if (row.studentId !== id) return reply.code(403).send(failure('FORBIDDEN', 'Нет доступа к заявке'));
-    if (row.status === 'cancelled') return { data: publicRow(row) };
-    const [updated] = await db.update(requests).set({ status: 'cancelled', updatedAt: new Date() })
-      .where(and(eq(requests.id, row.id), eq(requests.studentId, id), inArray(requests.status, ['submitted', 'in_progress']))).returning();
-    if (!updated) return reply.code(409).send(failure('CONFLICT', 'Эту заявку уже нельзя отменить'));
+    const pushed: PushNotice[] = [];
+    const updated = await db.transaction(async tx => {
+      const [row] = await tx.select().from(requests).where(eq(requests.id, req.params.id)).for('update');
+      if (!row) fail(404,'Заявка не найдена');
+      if (row.studentId !== id) fail(403,'Нет доступа к заявке');
+      if (row.status === 'cancelled') return row;
+      if (!['submitted','in_progress'].includes(row.status)) fail(409,'Эту заявку уже нельзя отменить');
+      const [result] = await tx.update(requests).set({status:'cancelled',updatedAt:new Date()}).where(eq(requests.id,row.id)).returning();
+      pushed.push(...await tx.insert(notifications).values({studentId:id,...requestNotice(row,row.status,'cancelled')}).returning());
+      return result!;
+    });
+    publishPush(push,pushed,app.log);
     return { data: publicRow(updated) };
   });
   app.get('/api/staff/requests', async (req, reply) => {
@@ -92,7 +114,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
         documentBase64 = (await requestPdf({ ...row, ...student!, ...(row.type==='study'?row.draftSnapshot:{}), readyAt: readyAt! })).toString('base64');
       }
       const [updated] = await tx.update(requests).set({ status: req.body.status, processedBy: staffId, updatedAt: new Date(), readyAt, documentBase64, ...(req.body.status==='rejected'?{rejectionReason:req.body.reason!.trim()}: {}) }).where(eq(requests.id, row.id)).returning();
-      pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, title: req.body.status === 'ready' ? 'Заявка готова' : 'Статус заявки изменён', body: 'Откройте раздел заявок для просмотра.' }).returning());
+      pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, ...requestNotice(row, row.status, req.body.status, req.body.status === 'rejected' ? req.body.reason?.trim() : undefined) }).returning());
       return { code: 200, data: publicRow(updated!) };
     });
     publishPush(push, pushed, app.log);

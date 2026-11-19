@@ -36,7 +36,7 @@ export function createPush(db: Db, log: { warn: (error: unknown, message: string
     await Promise.all(subs.flatMap(sub => rows.filter(row => row.studentId === sub.userId).map(async row => {
       try {
         await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ userId: row.studentId, title: row.title, body: row.body, id: row.id }), { TTL: 3600, timeout: 5000 });
+          JSON.stringify({ userId: row.studentId, title: row.title, body: row.body.length > 900 ? Array.from(row.body).slice(0, 900).join('') + '… Полный текст в уведомлениях.' : row.body, id: row.id }), { TTL: 3600, timeout: 5000 });
       } catch (error) {
         const status = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : null;
         if (status === 404 || status === 410) await db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.endpoint, sub.endpoint), eq(pushSubscriptions.userId, sub.userId)));

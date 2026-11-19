@@ -54,6 +54,9 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     assert.equal((await cancel('invalid')).statusCode, 400);
     assert.equal((await cancel(row.id)).json().data.status, 'cancelled');
     assert.equal((await cancel(row.id)).statusCode, 200);
+    const cancellationNotices=await c.db.select().from(notifications).where(eq(notifications.studentId,ids[0]!));
+    assert.equal(cancellationNotices.length,2,'repeated cancellation must not duplicate notice');
+    assert.ok(cancellationNotices.some(n=>n.body.includes('Принята → Отменена')&&n.body.includes(row.id)));
     assert.equal((await list(0)).json().data[0].status, 'cancelled');
     const ready = (await create(input)).json().data;
     await c.db.update(requests).set({ status: 'ready' }).where(eq(requests.id, ready.id));
@@ -121,6 +124,32 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     assert.equal(staffList.statusCode, 200);
     assert(staffList.json().data.some((r: { id: string }) => r.id === row.id));
     assert.equal('documentBase64' in staffList.json().data[0], false);
+    // AI notes remain isolated by the same owner/session checks as other requests.
+    const originalFetch=globalThis.fetch, originalKey=process.env.YANDEX_API_KEY, originalUri=process.env.YANDEX_MODEL_URI;
+    process.env.YANDEX_API_KEY='integration-only-key';process.env.YANDEX_MODEL_URI='gpt://demo/yandexgpt/latest';
+    globalThis.fetch=async()=>new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:'Уточните семестр для демозаявки.'}}]}}));
+    try {
+      const options=await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[0]!}});
+      assert.equal((await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[2]!}})).statusCode,403);
+      assert.equal(options.statusCode,200);assert.equal(options.json().data.aiEnabled,true);
+      assert.equal((await create({...input,type:'other',processingMode:'ai'})).statusCode,400);
+      const ai=await create({...input,type:'retake',processingMode:'ai'});
+      assert.equal(ai.statusCode,201);const aiRow=ai.json().data;
+      assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'submitted');
+      assert.equal(aiRow.aiNote,'Уточните семестр для демозаявки.');
+      assert.equal((await list(1)).json().data.some((r:{id:string})=>r.id===aiRow.id),false);
+      assert.equal((await cancel(aiRow.id,1)).statusCode,403);
+      const allStaff=(await app.inject({method:'GET',url:'/api/staff/requests',headers:{cookie:cookies[3]!}})).json().data;
+      assert.equal(allStaff.find((r:{id:string})=>r.id===aiRow.id).aiNote,aiRow.aiNote);
+      globalThis.fetch=async()=>new Response('unavailable',{status:503});
+      const count=(await list(0)).json().data.length;
+      assert.equal((await create({...input,processingMode:'ai'})).statusCode,502);
+      assert.equal((await list(0)).json().data.length,count);
+    } finally {
+      globalThis.fetch=originalFetch;
+      if(originalKey===undefined)delete process.env.YANDEX_API_KEY;else process.env.YANDEX_API_KEY=originalKey;
+      if(originalUri===undefined)delete process.env.YANDEX_MODEL_URI;else process.env.YANDEX_MODEL_URI=originalUri;
+    }
     await c.db.delete(sessions).where(eq(sessions.userId, ids[0]!));
     assert.equal((await list(0)).statusCode, 401);
     assert.equal((await pdf(0)).statusCode, 401);
