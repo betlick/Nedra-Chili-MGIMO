@@ -189,10 +189,10 @@ export function StaffTasksPage() {
                   {selected.status === 'submitted' && (
                     <>
                       <Button variant="strong" icon="check" disabled={busy} onClick={() => void move(selected, 'in_progress', 'Заявка взята в работу')}>Взять в работу</Button>
-                      {selected.type!=='study' && <Button variant="surface" disabled={busy} onClick={() => void move(selected, 'ready', 'Заявка готова, студент уведомлён')}>Сразу готова</Button>}
+                      {!['study','retake'].includes(selected.type) && <Button variant="surface" disabled={busy} onClick={() => void move(selected, 'ready', 'Заявка готова, студент уведомлён')}>Сразу готова</Button>}
                     </>
                   )}
-                  {selected.status === 'in_progress' && selected.type!=='study' && (
+                  {selected.status === 'in_progress' && !['study','retake'].includes(selected.type) && (
                     <Button variant="strong" icon="check" disabled={busy} onClick={() => void move(selected, 'ready', 'Заявка готова, студент уведомлён')}>Отметить готовой</Button>
                   )}
                   {selected.status === 'ready' && (
@@ -204,6 +204,7 @@ export function StaffTasksPage() {
                     </a>
                   )}
                 </div>
+                {selected.docxAvailable && <a className="btn btn--surface btn--md" href={`/api/staff/requests/${selected.id}/docx`} download>Скачать DOCX</a>}
                 <DocumentActions key={selected.id} row={selected} reload={reload}/>
                 {(selected.status === 'rejected') && <p className="muted small">Заявка отклонена — действий не требуется.</p>}
                 {(selected.status === 'cancelled') && <p className="muted small">Студент отменил заявку — дальнейшая обработка недоступна.</p>}

@@ -5,7 +5,7 @@ import { hash } from 'argon2';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../src/app.js';
 import { connectDatabase } from '../src/db.js';
-import { academicDeadlines, announcements, gradeEntries, groups, inquiries, inquiryReplies, lessons, materials, notifications, requests, sessions, subjects, teachingAssignments, users } from '../src/schema.js';
+import { academicDeadlines, announcements, gradeEntries, groups, inquiries, inquiryReplies, lessons, materials, notifications, requests, sessions, subjects, teachingAssignments, users, studentDocumentProfiles } from '../src/schema.js';
 test('end-to-end API: two students, two teachers, object isolation, atomic grades, files, replies and schedule races', async () => {
     const c = connectDatabase(), app = buildApp({ logger: false, origin: 'http://localhost:5173', secureCookies: false });
     const suffix = randomUUID(), studentA = randomUUID(), studentB = randomUUID(), teacherA = randomUUID(), teacherB = randomUUID(), staff = randomUUID();
@@ -19,6 +19,7 @@ test('end-to-end API: two students, two teachers, object isolation, atomic grade
         assert.deepEqual(ready.json(),{status:'ready'});
         await c.db.insert(groups).values(groupIds.map((id, i) => ({ id, name: `INTEGRATION-${suffix}-${i}`, faculty: 'Вымышленный факультет', program: 'Учебная программа', year: 1 })));
         await c.db.insert(users).values(ids.map((id, i) => ({ id, email: `integration-${suffix}-${i}@example.test`, fullName: `Вымышленный пользователь ${i}`, faculty: 'Учебный факультет', role: i < 2 ? 'student' : i < 4 ? 'teacher' : 'staff', groupId: i < 2 ? groupIds[i] : null, passwordHash })));
+        await c.db.insert(studentDocumentProfiles).values(ids.slice(0,2).map(studentId => ({studentId,birthDate:'2008-02-14',studyForm:'Очная',fundingBasis:'Бюджетная (демо)',enrollmentDate:'2026-08-25',enrollmentOrder:'ДЕМО-ТЕСТ',expectedGraduationDate:'2030-06-30',phone:'+7 (000) 000-00-00',enrollmentStatus:'active'})));
         await c.db.insert(subjects).values({ id: subjectId, name: `Учебная дисциплина ${suffix}` });
         await c.db.insert(teachingAssignments).values(assignmentIds.map((id, i) => ({ id, subjectId, groupId: groupIds[i]!, teacherId: ids[i + 2]!, semester: 1, form: 'Экзамен' })));
         for (let i = 0; i < ids.length; i++) {

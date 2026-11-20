@@ -76,6 +76,7 @@ export const requests = pgTable('requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   studentId: uuid('student_id').notNull().references(() => users.id),
   type: text('type').notNull(),
+  assignmentId: uuid('assignment_id').references(() => teachingAssignments.id),
   processingMode: text('processing_mode').notNull().default('staff'),
   aiNote: text('ai_note'),
   processedBy: uuid('processed_by').references(() => users.id),
@@ -90,6 +91,7 @@ export const requests = pgTable('requests', {
   typeChangedBy: uuid('type_changed_by').references(() => users.id),
   typeChangedAt: timestamp('type_changed_at', { withTimezone: true }),
   documentBase64: text('document_base64'),
+  documentDocxBase64: text('document_docx_base64'),
   purpose: text('purpose').notNull().default(''),
   delivery: text('delivery').notNull().default('office'),
   comment: text('comment').notNull().default(''),
@@ -120,6 +122,8 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
 export interface DocumentSnapshot {
   fullName: string; faculty: string; program: string; year: number; groupName: string;
   purpose: string; templateVersion: string;
+  documentType?: 'study' | 'retake';
+  fields?: Record<string, string>;
 }
 export const userPrefs = pgTable('user_prefs', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),

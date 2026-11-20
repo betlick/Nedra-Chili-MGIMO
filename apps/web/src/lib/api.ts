@@ -51,6 +51,8 @@ export const authApi = {
 /* ── Кабинет сотрудника деканата ─────────────────────────── */
 export type ApiRequestStatus = 'submitted' | 'in_progress' | 'ready' | 'rejected' | 'issued' | 'cancelled'
 export interface ApiStaffRequest {
+  assignmentId: string | null
+  docxAvailable: boolean
   processingMode: 'staff'|'ai'
   aiNote: string|null
   id: string
@@ -75,6 +77,12 @@ export interface ApiStaffRequest {
   typeChangedAt?: string | null
 }
 export interface ApiGroup { id: string; name: string; faculty: string; program: string; year: number }
+export interface ApiDocumentData {
+  student: { fullName:string;faculty:string;groupName:string|null;program:string|null;year:number|null }
+  profile: {birthDate:string;studyForm:string;fundingBasis:string;enrollmentDate:string;enrollmentOrder:string;expectedGraduationDate:string;phone:string;enrollmentStatus:string;source:string}|null
+  missing: string[]
+  assignments: {id:string;subject:string;teacher:string;semester:number;form:string;academicYear:string|null}[]
+}
 export type ApiLessonKind = 'lecture' | 'seminar' | 'practice'
 export interface ApiLesson {
   id: string
@@ -106,6 +114,8 @@ export interface LessonInput {
 export const staffApi = {
   teachers:()=>request<{id:string;name:string}[]>('/api/staff/teachers'),
   changeType:(id:string,type:RequestType)=>request<ApiStaffRequest>(`/api/staff/requests/${id}/type`,'PATCH',{type}),
+  documentData:(id:string)=>request<ApiDocumentData>(`/api/staff/requests/${id}/document-data`),
+  setAssignment:(id:string,assignmentId:string)=>request<ApiStaffRequest>(`/api/staff/requests/${id}/assignment`,'PATCH',{assignmentId}),
   prepare:(id:string)=>request<ApiStaffRequest>(`/api/staff/requests/${id}/prepare`,'POST',{verified:true}),
   requests: () => request<ApiStaffRequest[]>('/api/staff/requests'),
   setStatus: (id: string, status: 'in_progress' | 'ready' | 'issued' | 'rejected', extra: {reason?:string;draftId?:string} = {}) => request<ApiStaffRequest>(`/api/staff/requests/${id}/status`, 'PATCH', { status, ...extra }),

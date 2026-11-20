@@ -3,29 +3,26 @@ import { AI_REQUEST_TYPES, aiConfigured, prepareAiNote } from './request-ai.js';
 import { REQUEST_TYPE_IDS } from './request-types.js';
 import { randomUUID } from 'node:crypto';
 import { bodyObject, fail, uuid, type DbSession } from './domain.js';
-import type { DocumentSnapshot } from './schema.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { desc, eq } from 'drizzle-orm';
 import type { connectDatabase } from './db.js';
 import { requestPdf } from './request-pdf.js';
-import { notifications, requests, users, groups } from './schema.js';
+import { notifications, requests, users, groups, teachingAssignments } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
 import { typeChangeNotice } from './request-notice.js';
 import { documentData } from './document-data.js';
+import { documentSnapshot, filledDocx, isTemplateType, originalTemplate, sameSnapshot } from './request-document.js';
+import { docxToPdf } from './document-converter.js';
 
-type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai' };
-export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService) {
+type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai'; assignmentId?: string };
+export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService, convertDocument = docxToPdf) {
   const aiWindows = new Map<string, {start:number; count:number}>();
-  const publicRow = ({ documentBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => row;
-  async function snapshot(tx: DbSession, row: typeof requests.$inferSelect): Promise<DocumentSnapshot> {
-    const [u] = await tx.select({ fullName:users.fullName, faculty:users.faculty, groupId:users.groupId }).from(users).where(eq(users.id,row.studentId)).for('share');
-    if (!u) fail(409, 'Профиль студента не найден');
-    const [g] = u.groupId ? await tx.select().from(groups).where(eq(groups.id,u.groupId)).for('share') : [];
-    const p={fullName:u.fullName,faculty:u.faculty,program:g?.program??null,year:g?.year??null,groupName:g?.name??null};
-    const missing = Object.entries(p).filter(([key,value]) => key === 'year' ? !Number.isInteger(value) || Number(value) < 1 : typeof value !== 'string' || !value.trim()).map(([key])=>key);
-    if (!row.purpose.trim()) missing.push('purpose');
-    if (missing.length) fail(409, 'Заполните учебные сведения: '+missing.join(', '));
-    return { ...p, program:p.program!, year:p.year!, groupName:p.groupName!, purpose:row.purpose, templateVersion:'study-v2' };
+  const publicRow = ({ documentBase64, documentDocxBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => ({ ...row, docxAvailable: Boolean(documentDocxBase64) && ['ready','issued'].includes(row.status) });
+  const snapshot = documentSnapshot;
+  async function checkAssignment(tx: DbSession, studentId: string, assignmentId: string) {
+    const [u] = await tx.select({ groupId: users.groupId }).from(users).where(eq(users.id, studentId)).for('share');
+    const [a] = await tx.select({ groupId: teachingAssignments.groupId }).from(teachingAssignments).where(eq(teachingAssignments.id, assignmentId)).for('share');
+    if (!a || !u?.groupId || a.groupId !== u.groupId) fail(403, 'Нет доступа к дисциплине этой группы');
   }
   const failure = (code: string, message: string) => ({ error: { code, message } });
   app.get('/api/requests/document-data', async (req, reply) => {
@@ -39,7 +36,15 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     if (!row) fail(404, 'Заявка не найдена');
     return { data: await documentData(db, row.studentId) };
   });
-  app.get('/api/requests/options', async (req, reply) => {
+  for (const isStaff of [false, true]) {
+    app.get<{Params:{type:string}}>(isStaff ? '/api/staff/requests/templates/:type' : '/api/requests/templates/:type', async (req, reply) => {
+      if (!await (isStaff ? staff : student)(req, reply)) return;
+      const buffer = await originalTemplate(req.params.type);
+      return reply.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .header('X-Content-Type-Options','nosniff').header('Content-Disposition', `attachment; filename="template-${req.params.type}.docx"`).send(buffer);
+    });
+  }
+  app.get('/api/requests/options' , async (req, reply) => {
     if (!await student(req, reply)) return;
     return {data:{aiEnabled:aiConfigured(),aiTypes:AI_REQUEST_TYPES}};
   });
@@ -54,10 +59,15 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       comment: { type: 'string', maxLength: 2000 },
       delivery: { type: 'string', enum: ['pdf', 'office'] },
       processingMode: {type:'string',enum:['staff','ai']},
+      assignmentId: {type:'string',format:'uuid'},
     } } },
   }, async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
     if (!req.body.purpose.trim()) return reply.code(400).send(failure('BAD_REQUEST', 'Укажите цель заявки'));
+    if (req.body.type === 'retake') {
+      if (!req.body.assignmentId) fail(400, 'Выберите дисциплину для пересдачи');
+      await db.transaction(tx => checkAssignment(tx, id, req.body.assignmentId!));
+    } else if (req.body.assignmentId) fail(400, 'Дисциплина выбирается только для пересдачи');
     const pushed: PushNotice[] = [];
     const mode = req.body.processingMode ?? 'staff';
     if (mode === 'ai') {
@@ -69,7 +79,8 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     }
     const aiNote = mode === 'ai' ? await prepareAiNote(req.body) : null;
     const result = await db.transaction(async tx => {
-      const [row] = await tx.insert(requests).values({ studentId: id, processingMode: mode, aiNote, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
+      if (req.body.type === 'retake') await checkAssignment(tx, id, req.body.assignmentId!);
+      const [row] = await tx.insert(requests).values({ studentId: id, assignmentId: req.body.assignmentId ?? null, processingMode: mode, aiNote, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
       pushed.push(...await tx.insert(notifications).values({ studentId: id, requestId: row!.id, ...requestNotice(row!, null, 'submitted') }).returning());
       return row;
     });
@@ -115,14 +126,15 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       const allowed: Record<string, string[]> = { submitted: ['in_progress', 'ready', 'rejected'], in_progress: ['ready', 'rejected'], ready: ['issued'] };
       if (!allowed[row.status]?.includes(req.body.status)) return { code: 409, data: null };
       if (req.body.status === 'rejected' && !req.body.reason?.trim()) fail(400,'Укажите причину отказа');
-      if (row.type === 'study' && req.body.status === 'ready') {
+      if (isTemplateType(row.type) && req.body.status === 'ready') {
+        if (!row.documentBase64 || !row.documentDocxBase64) fail(409,'Подготовьте и просмотрите новый документ');
         if (row.status !== 'in_progress' || !row.verifiedAt || !row.verifiedBy || !row.draftSnapshot || !row.previewedAt || req.body.draftId !== row.draftId) fail(409,'Нужны проверка сведений и просмотр актуального черновика');
         const current = await snapshot(tx,row);
-        if (Object.entries(current).some(([k,v])=>row.draftSnapshot![k as keyof DocumentSnapshot]!==v)) fail(409,'Сведения изменились. Подготовьте и просмотрите новый черновик');
+        if (!sameSnapshot(row.draftSnapshot, current)) fail(409,'Сведения изменились. Подготовьте и просмотрите новый черновик');
       }
       let documentBase64 = row.documentBase64;
       const readyAt = req.body.status === 'ready' ? new Date() : row.readyAt;
-      if (req.body.status === 'ready') {
+      if (req.body.status === 'ready' && !isTemplateType(row.type)) {
         const [student] = await tx.select({ fullName: users.fullName, groupName: groups.name }).from(users).leftJoin(groups, eq(groups.id, users.groupId)).where(eq(users.id, row.studentId));
         documentBase64 = (await requestPdf({ ...row, ...student!, ...(row.type==='study'?row.draftSnapshot:{}), readyAt: readyAt! })).toString('base64');
       }
@@ -151,34 +163,71 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       if (r.type === req.body.type) return r;
       // Черновик справки готовился под прежний вид — сбрасываем его, проверку нужно пройти заново.
       const [updated] = await tx.update(requests).set({ type: req.body.type, previousType: r.type, typeChangedBy: staffId, typeChangedAt: new Date(), updatedAt: new Date(),
-        draftId: null, draftSnapshot: null, verifiedAt: null, verifiedBy: null, previewedAt: null }).where(eq(requests.id, r.id)).returning();
+        assignmentId: null, documentBase64: null, documentDocxBase64: null, draftId: null, draftSnapshot: null, verifiedAt: null, verifiedBy: null, previewedAt: null }).where(eq(requests.id, r.id)).returning();
       pushed.push(...await tx.insert(notifications).values({ studentId: r.studentId, kind: 'request', requestId: r.id, ...typeChangeNotice(updated!, r.type) }).returning());
       return updated!;
     });
     publishPush(push, pushed, app.log);
     return { data: publicRow(row) };
   });
+  app.patch<{Params:{id:string}}>('/api/staff/requests/:id/assignment', async (req, reply) => {
+    const staffId = await staff(req, reply); if (!staffId) return;
+    const assignmentId = uuid(bodyObject(req.body).assignmentId);
+    const row = await db.transaction(async tx => {
+      const [r] = await tx.select().from(requests).where(eq(requests.id, uuid(req.params.id))).for('update');
+      if (!r) fail(404, 'Заявка не найдена');
+      if (r.type !== 'retake' || !['submitted','in_progress'].includes(r.status)) fail(409, 'Нельзя изменить дисциплину этой заявки');
+      await checkAssignment(tx, r.studentId, assignmentId);
+      if (r.assignmentId === assignmentId) return r;
+      const [updated] = await tx.update(requests).set({assignmentId, processedBy: staffId, draftId: null, draftSnapshot: null,
+        documentBase64: null, documentDocxBase64: null, verifiedAt: null, verifiedBy: null, previewedAt: null, updatedAt: new Date()})
+        .where(eq(requests.id,r.id)).returning();
+      return updated!;
+    });
+    return {data:publicRow(row)};
+  });
   app.post<{Params:{id:string}}>('/api/staff/requests/:id/prepare', async(req,reply)=>{
     const staffId=await staff(req,reply);if(!staffId)return;
-    if(bodyObject(req.body).verified!==true)fail(400,'Подтвердите проверку сведений и факта обучения');
+    if(bodyObject(req.body).verified!==true)fail(400,'Подтвердите проверку сведений');
     const row=await db.transaction(async tx=>{
       const [r]=await tx.select().from(requests).where(eq(requests.id,uuid(req.params.id))).for('update');
-      if(!r)fail(404,'Заявка не найдена');if(r.type!=='study'||r.status!=='in_progress')fail(409,'Справка должна быть в работе');
+      if(!r)fail(404,'Заявка не найдена');if(!isTemplateType(r.type)||r.status!=='in_progress')fail(409,'Заявка должна быть в работе');
       const draftSnapshot=await snapshot(tx,r);
-      const [updated]=await tx.update(requests).set({draftSnapshot,draftId:randomUUID(),verifiedBy:staffId,verifiedAt:new Date(),previewedAt:null,updatedAt:new Date()}).where(eq(requests.id,r.id)).returning();return updated;
-    });return {data:publicRow(row)};
+      const [updated]=await tx.update(requests).set({draftSnapshot,draftId:randomUUID(),verifiedBy:staffId,verifiedAt:new Date(),
+        documentBase64:null,documentDocxBase64:null,previewedAt:null,updatedAt:new Date()}).where(eq(requests.id,r.id)).returning();return updated;
+    });return {data:publicRow(row!)};
   });
   app.post<{Params:{id:string}}>('/api/staff/requests/:id/preview', async(req,reply)=>{
-    if(!await staff(req,reply))return;const draftId=uuid(bodyObject(req.body).draftId);
-    const pdf=await db.transaction(async tx=>{
-      const [r]=await tx.select().from(requests).where(eq(requests.id,uuid(req.params.id))).for('update');
-      if(!r)fail(404,'Заявка не найдена');if(r.status!=='in_progress'||r.draftId!==draftId||!r.draftSnapshot)fail(409,'Черновик недоступен');
-      const current=await snapshot(tx,r);
-      if(Object.entries(current).some(([k,v])=>r.draftSnapshot![k as keyof DocumentSnapshot]!==v))fail(409,'Сведения изменились. Подготовьте новый черновик');
-      const result=await requestPdf({...r,...r.draftSnapshot,readyAt:new Date(),draft:true});
-      await tx.update(requests).set({previewedAt:new Date()}).where(eq(requests.id,r.id));return result;
-    });return reply.type('application/pdf').header('X-Content-Type-Options','nosniff').header('Content-Disposition','attachment; filename="draft.pdf"').send(pdf);
+    if(!await staff(req,reply))return;
+    const draftId=uuid(bodyObject(req.body).draftId), requestId=uuid(req.params.id);
+    const readDraft = async(tx:DbSession) => {
+      const [r]=await tx.select().from(requests).where(eq(requests.id,requestId)).for('update');
+      if(!r)fail(404,'Заявка не найдена');
+      if(!isTemplateType(r.type)||r.status!=='in_progress'||r.draftId!==draftId||!r.draftSnapshot)fail(409,'Черновик недоступен');
+      if(!sameSnapshot(r.draftSnapshot,await snapshot(tx,r)))fail(409,'Сведения изменились. Подготовьте новый черновик');
+      return r;
+    };
+    const row=await db.transaction(readDraft);
+    const docx=row.documentDocxBase64?Buffer.from(row.documentDocxBase64,'base64'):await filledDocx(row.draftSnapshot!);
+    // Slow conversion must never hold a database transaction or source-row locks.
+    const pdf=row.documentBase64?Buffer.from(row.documentBase64,'base64'):await convertDocument(docx);
+    await db.transaction(async tx=>{
+      await readDraft(tx);
+      await tx.update(requests).set({documentBase64:pdf.toString('base64'),documentDocxBase64:docx.toString('base64'),previewedAt:new Date()}).where(eq(requests.id,requestId));
+    });
+    return reply.type('application/pdf').header('X-Content-Type-Options','nosniff').header('Content-Disposition','attachment; filename="preview.pdf"').send(pdf);
   });
+  for (const isStaff of [false, true]) {
+    app.get<{Params:{id:string}}>(isStaff ? '/api/staff/requests/:id/docx' : '/api/requests/:id/docx', async(req,reply)=>{
+      const id=await (isStaff?staff:student)(req,reply);if(!id)return;
+      const [row]=await db.select().from(requests).where(eq(requests.id,uuid(req.params.id)));
+      if(!row)fail(404,'Заявка не найдена');
+      if(!isStaff&&row.studentId!==id)fail(403,'Нет доступа к заявке');
+      if(!['ready','issued'].includes(row.status)||!row.documentDocxBase64||(!isStaff&&row.delivery!=='pdf'))fail(409,'Документ пока недоступен для скачивания');
+      return reply.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .header('X-Content-Type-Options','nosniff').header('Content-Disposition',`attachment; filename="request-${row.id}.docx"`).send(Buffer.from(row.documentDocxBase64,'base64'));
+    });
+  }
   for (const isStaff of [false, true]) {
     app.get<{ Params: { id: string } }>(isStaff ? '/api/staff/requests/:id/pdf' : '/api/requests/:id/pdf', {
       schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } },

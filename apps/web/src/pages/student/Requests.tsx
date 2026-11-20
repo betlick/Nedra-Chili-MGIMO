@@ -30,6 +30,7 @@ export function RequestsPage() {
   // /student/requests?to=teacher открывает вкладку обращений (по этой ссылке приходят из уведомлений и со старой страницы)
   const [target, setTarget] = useState<Target>(() => (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('to') === 'teacher' ? 'teacher' : 'dean'))
   const [teacher, setTeacher] = useState('')
+  const [assignmentId, setAssignmentId] = useState('')
   const [teachers, setTeachers] = useState<ApiAssignment[]>([])
   const [teacherError, setTeacherError] = useState('')
   const [commentError, setCommentError] = useState('')
@@ -80,13 +81,14 @@ export function RequestsPage() {
       finally { setBusy(false) }
       return
     }
+    if (type === 'retake' && !assignmentId) return setError('Выберите дисциплину для пересдачи')
     if (!purpose.trim()) {
-      setError(type === 'other' ? 'Коротко напишите, что нужно' : 'Укажите цель — например, «по месту требования»')
+      setError(type === 'other' ? 'Коротко напишите, что нужно' : type === 'retake' ? 'Укажите причину пересдачи' : 'Укажите цель — например, «по месту требования»')
       return
     }
     if (type === 'other' && !comment.trim()) return setCommentError('Опишите, что нужно, — иначе деканат не поймёт обращение')
     setBusy(true)
-    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery, processingMode })
+    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery, processingMode, ...(type === 'retake' ? {assignmentId} : {}) })
     setBusy(false)
     if (!ok) return
     setPurpose('')
@@ -135,9 +137,20 @@ export function RequestsPage() {
             <p className="small muted">{processingMode==='ai' ? 'ИИ подготовит подсказку по заполнению. Решение и выдача документа — после проверки сотрудником.' : 'Все 16 тем и «Другое». Заявку проверит сотрудник деканата.'}</p>
             {processingMode==='ai'&&!aiOptions.aiEnabled&&<p className="field__error">YandexGPT пока не настроен. Выберите сотрудника.</p>}
             <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" allowed={processingMode==='ai'?aiOptions.aiTypes:undefined} />
+            {type !== 'other' && <Button variant="ghost" type="button" onClick={() => void downloadFile(`/api/requests/templates/${type}`, `template-${type}.docx`).catch(e => toast(e.message))}>Скачать исходный бланк DOCX</Button>}
+            {(type === 'study' || type === 'retake') && <p className="small muted">Бланк заполнится из учебного профиля. Перед выдачей его проверит сотрудник.</p>}
           </div>
           )}
 
+          {target === 'dean' && type === 'retake' && <label className="field">
+            <span className="field__label">Дисциплина для пересдачи</span>
+            <select className="input" value={assignmentId} onChange={e => {setAssignmentId(e.target.value);setError('')}}>
+              <option value="">Выберите дисциплину</option>
+              {teachers.map(a => <option key={a.id} value={a.id}>{a.subject} · {a.form} · семестр {a.semester} · {a.teacher}</option>)}
+            </select>
+            {teacherError && <span className="field__error">{teacherError}</span>}
+            {!teachers.length && !teacherError && <span className="small muted">Для группы пока нет назначений. Обратитесь в деканат.</span>}
+          </label>}
           {target === 'teacher' && (
             <div className="field">
               <label className="field__label" htmlFor="inquiry-assignment">Преподаватель и дисциплина</label>
@@ -151,10 +164,10 @@ export function RequestsPage() {
           )}
 
           <label className="field">
-            <span className="field__label">{target === 'teacher' ? 'Тема' : 'Цель'}</span>
+            <span className="field__label">{target === 'teacher' ? 'Тема' : type === 'retake' ? 'Причина пересдачи' : 'Цель'}</span>
             <input
               className={`input ${error ? 'is-invalid' : ''}`}
-              placeholder={target === 'teacher' ? 'Например, вопрос по контрольной' : type === 'retake' ? 'Дисциплина, например «Теория вероятностей»' : type === 'other' ? 'Коротко: что нужно' : 'Например, для предоставления по месту требования'}
+              placeholder={target === 'teacher' ? 'Например, вопрос по контрольной' : type === 'retake' ? 'Например, ликвидация академической задолженности' : type === 'other' ? 'Коротко: что нужно' : 'Например, для предоставления по месту требования'}
               maxLength={target === 'teacher' ? 200 : 500}
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
@@ -239,11 +252,12 @@ export function RequestsPage() {
                 {r.rejectionReason && <p role="alert">Причина отказа: {r.rejectionReason}</p>}
                 {r.comment && <blockquote className="req__comment">«{r.comment}»</blockquote>}
                 <div className="req__actions">
-                  {['ready','issued'].includes(r.status) && r.delivery === 'pdf' && (
+                  {['ready','issued'].includes(r.status) && r.delivery === 'pdf' && (<>
                     <Button variant="primary" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/pdf`, `request-${r.id}.pdf`).catch(e => toast(e.message))}>
                       Скачать PDF
                     </Button>
-                  )}
+                    {r.docxAvailable && <Button variant="surface" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/docx`, `request-${r.id}.docx`).catch(e => toast(e.message))}>Скачать DOCX</Button>}
+                  </>)}
                   {['submitted','in_progress'].includes(r.status) && <Button
                     disabled={busy}
                     variant="danger"

@@ -1,0 +1,66 @@
+{
+  "study": {
+    "source": "01_Spravka_ob_obuchenii.docx",
+    "sha256": "7280feda60f464f7f09796286af460cc5430074a189d83c0cf0bf381f44aa4c6"
+  },
+  "english": {
+    "source": "02_Spravka_na_angliyskom.docx",
+    "sha256": "a5e55ac6701468720f94916de6244646fe6e1ce4b18b9d185aa57ea9e3d23578"
+  },
+  "military": {
+    "source": "03_Spravka_dlya_voenkomata_Prilozhenie_4.docx",
+    "sha256": "2d271bbea099425e8420f0fd7bb311f066e43f62d0ae34dc4c91e7a9818e52fc"
+  },
+  "social": {
+    "source": "04_Spravka_v_nalogovuyu_SFR_soczashchitu.docx",
+    "sha256": "c0648c048606b409097b7937d8f4bc10f2cb6037615353a45842b07bd6082f95"
+  },
+  "summons": {
+    "source": "05_Spravka_vyzov_na_sessiyu.docx",
+    "sha256": "808fe07442e9530ee66b8c7157bb258f17ba83d613293cb2e5a030834a2b7cfb"
+  },
+  "transcript": {
+    "source": "06_Akademicheskaya_spravka_transkript.docx",
+    "sha256": "99bc93415056f19343954806ba6f2d843f20f705fd555167cc88debbc02bb0fd"
+  },
+  "order": {
+    "source": "07_Kopiya_prikaza.docx",
+    "sha256": "ce80ca3d65645c002ea49b47624ada4c4172ef4c4a3076e0140867eb11824c6a"
+  },
+  "credit": {
+    "source": "08_Zayavlenie_perezachet_disciplin_ili_sertifikata.docx",
+    "sha256": "91b1a4d3e7349320fde817d4691964151ac46d547b069dc7ef42b273f6603e25"
+  },
+  "iup": {
+    "source": "09_Zayavlenie_individualny_uchebny_plan.docx",
+    "sha256": "4ec70f91938a3c66b9a8532d29b681497b5d2c3a31f840e4a346ee7f4f0d2179"
+  },
+  "transfer": {
+    "source": "10_Zayavlenie_perevod_na_druguyu_programmu_ili_formu.docx",
+    "sha256": "e4bc33fe68fe893ad5772c86b823776832e12af833e203b511c09981bcf8057d"
+  },
+  "extension": {
+    "source": "11_Zayavlenie_prodlenie_sessii.docx",
+    "sha256": "8539380a7f41e5ac31c9abc2dc075a9692fd8f303c76c5021d2c934ecd7073dc"
+  },
+  "retake": {
+    "source": "12_Zayavlenie_peresdacha_ekzamena.docx",
+    "sha256": "161f00591e1b65d21ee8555be9219bd4adf0424b8ab4eb3b933ae35bb15d2d10"
+  },
+  "leave": {
+    "source": "13_Zayavlenie_akademicheskiy_otpusk.docx",
+    "sha256": "61dcb15d72990d515f755d12e78c922dd6ae5496dbf3089dbaa729e5e261f3d8"
+  },
+  "card": {
+    "source": "14_Zayavlenie_dublikat_studencheskogo_ili_karty.docx",
+    "sha256": "ebf04ec246764f3b32bdbfb61148defe3dd7e3ce3fbead0a216a4b1539260744"
+  },
+  "guest_pass": {
+    "source": "15_Zayavka_razovy_propusk_dlya_gostya.docx",
+    "sha256": "5e7a9fd50a0e6ba0956dfdb8be55d6829eb13fd52598c32fd63d01832c25c159"
+  },
+  "aid": {
+    "source": "16_Zayavlenie_mat_pomoshch_povyshennaya_stipendiya.docx",
+    "sha256": "71b4a6d30f973620fce60ab390a423f614d8680564157a9fec8ed5660ab4c525"
+  }
+}

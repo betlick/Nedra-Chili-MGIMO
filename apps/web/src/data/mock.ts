@@ -22,7 +22,7 @@ const GROUPS = [
       { type: 'iup', label: 'Индивидуальный учебный план', hint: 'Работа по специальности, стажировка', icon: 'route' },
       { type: 'transfer', label: 'Перевод на другую программу или форму', hint: 'Например, с платного на бюджет', icon: 'swap' },
       { type: 'extension', label: 'Продление сессии', hint: 'Нужна медицинская справка', icon: 'clock' },
-      { type: 'retake', label: 'Пересдача экзамена', hint: 'Дисциплину укажите в цели', icon: 'refresh' },
+      { type: 'retake', label: 'Пересдача экзамена', hint: 'Выберите дисциплину и укажите причину', icon: 'refresh' },
       { type: 'leave', label: 'Академический отпуск', hint: 'Основание опишите в комментарии', icon: 'pause' },
     ],
   },

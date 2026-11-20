@@ -50,6 +50,8 @@ test('staff request type change: roles, allowed statuses, audit fields and notif
 
     assert.equal((await setStatus(request.id, 'in_progress')).statusCode, 200);
     assert.equal((await changeType(request.id, 'retake')).statusCode, 200);
+    assert.equal((await setStatus(request.id, 'ready')).statusCode, 409, 'retake requires a checked template');
+    assert.equal((await changeType(request.id, 'extension')).statusCode, 200);
     assert.equal((await setStatus(request.id, 'ready')).statusCode, 200);
     const number = request.id.slice(0, 4).toUpperCase();
     const titles = (await c.db.select().from(notifications).where(eq(notifications.studentId, ids[0]!))).map(n => n.title);

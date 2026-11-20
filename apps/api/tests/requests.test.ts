@@ -153,7 +153,7 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       assert.equal((await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[2]!}})).statusCode,403);
       assert.equal(options.statusCode,200);assert.equal(options.json().data.aiEnabled,true);
       assert.equal((await create({...input,type:'other',processingMode:'ai'})).statusCode,400);
-      const ai=await create({...input,type:'retake',processingMode:'ai'});
+      const ai=await create({...input,processingMode:'ai'});
       assert.equal(ai.statusCode,201);const aiRow=ai.json().data;
       assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'submitted');
       assert.equal(aiRow.aiNote,'Уточните семестр для демозаявки.');

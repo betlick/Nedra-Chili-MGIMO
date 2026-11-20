@@ -22,7 +22,7 @@ import { groups, sessions, users } from './schema.js';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const lifetime = 8 * 60 * 60;
-export function buildApp(options: { logger?: boolean; origin?: string; secureCookies?: boolean; ai?: Partial<AiDeps> } = {}) {
+export function buildApp(options: { logger?: boolean; origin?: string; secureCookies?: boolean; ai?: Partial<AiDeps>; convertDocument?: (docx: Buffer) => Promise<Buffer> } = {}) {
   const secret = process.env.JWT_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32) throw new Error('JWT_SECRET must contain at least 32 bytes');
   const key = new TextEncoder().encode(secret);
@@ -91,7 +91,7 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   deadlineRoutes(app, db, authorize('*'), push);
   materialRoutes(app, db, authorize('*'));
   notificationRoutes(app, db, authorize('*'), push);
-  requestRoutes(app, db, authorize('student'), authorize('staff'), push);
+  requestRoutes(app, db, authorize('student'), authorize('staff'), push, options.convertDocument);
   scheduleRoutes(app, db, authorize('staff'), authorize('*'), push);
   aiRoutes(app, db, authorize('*'), aiDeps);
   app.get('/health', async () => ({ status: 'ok' }));
