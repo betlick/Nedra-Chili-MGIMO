@@ -5,7 +5,7 @@ import { hash } from 'argon2';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../src/app.js';
 import { connectDatabase } from '../src/db.js';
-import { groups, users, requests, notifications, sessions } from '../src/schema.js';
+import { groups, users, requests, notifications, sessions, studentDocumentProfiles } from '../src/schema.js';
 
 test('requests: persistence, validation, ownership, roles, cancellation and revoked sessions', async () => {
   const c = connectDatabase();
@@ -27,6 +27,19 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     const list = (i: number) => app.inject({ method: 'GET', url: '/api/requests', headers: { cookie: cookies[i]! } });
     const create = (payload: object, i = 0) => app.inject({ method: 'POST', url: '/api/requests', headers: { ...csrf, cookie: cookies[i]! }, payload });
     const cancel = (id: string, i = 0) => app.inject({ method: 'PATCH', url: `/api/requests/${id}/cancel`, headers: { ...csrf, cookie: cookies[i]! } });
+    const documentData = (i: number, query = '') => app.inject({ method: 'GET', url: '/api/requests/document-data' + query, headers: { cookie: cookies[i]! } });
+    assert.equal((await app.inject({ method: 'GET', url: '/api/requests/document-data' })).statusCode, 401);
+    assert.equal((await documentData(2)).statusCode, 403);
+    assert.equal((await documentData(3)).statusCode, 403);
+    assert.ok((await documentData(0)).json().data.missing.includes('birthDate'));
+    await c.db.insert(studentDocumentProfiles).values(ids.slice(0, 2).map((studentId, i) => ({
+      studentId, birthDate: `2008-02-${i === 0 ? '14' : '15'}`, studyForm: 'Очная', fundingBasis: 'Бюджетная (демо)',
+      enrollmentDate: '2026-08-25', enrollmentOrder: `TEST-${i}`, expectedGraduationDate: '2030-06-30',
+      phone: `+7 (000) 000-00-0${i}`, enrollmentStatus: 'active', source: 'demo',
+    })));
+    assert.deepEqual((await documentData(0)).json().data.missing, []);
+    assert.equal((await documentData(0, `?studentId=${ids[1]}`)).json().data.profile.enrollmentOrder, 'TEST-0');
+    assert.equal((await documentData(1)).json().data.profile.enrollmentOrder, 'TEST-1');
     assert.equal((await app.inject({ method: 'GET', url: '/api/requests' })).statusCode, 401);
     assert.equal((await app.inject({ method: 'GET', url: '/api/requests', headers: { cookie: 'session=forged' } })).statusCode, 401);
     assert.equal((await list(2)).statusCode, 403);
@@ -40,6 +53,13 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     const created = await create({ ...input, studentId: ids[1] });
     assert.equal(created.statusCode, 201);
     const row = created.json().data;
+    const staffData = (i: number, id = row.id) => app.inject({ method: 'GET', url: `/api/staff/requests/${id}/document-data`, headers: { cookie: cookies[i]! } });
+    assert.equal((await staffData(0)).statusCode, 403);
+    assert.equal((await staffData(1)).statusCode, 403);
+    assert.equal((await staffData(2)).statusCode, 403);
+    assert.equal((await staffData(3)).json().data.profile.enrollmentOrder, 'TEST-0');
+    assert.equal((await staffData(3, randomUUID())).statusCode, 404);
+    assert.equal((await staffData(3, 'invalid')).statusCode, 400);
     assert.equal(row.studentId, ids[0]); assert.equal(row.purpose, input.purpose.trim()); assert.equal(row.status, 'submitted');
     assert.equal((await list(0)).json().data[0].id, row.id);
     assert.deepEqual((await list(1)).json().data, []);
@@ -151,6 +171,7 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       if(originalUri===undefined)delete process.env.YANDEX_MODEL_URI;else process.env.YANDEX_MODEL_URI=originalUri;
     }
     await c.db.delete(sessions).where(eq(sessions.userId, ids[0]!));
+    assert.equal((await documentData(0)).statusCode, 401);
     assert.equal((await list(0)).statusCode, 401);
     assert.equal((await pdf(0)).statusCode, 401);
     assert.equal((await create(input)).statusCode, 401);

@@ -15,7 +15,8 @@
     "test": "npm run test:unit && npm run test:integration",
     "db:reset-demo-staff-password": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local src/scripts/reset-demo-staff-password.ts",
     "test:unit": "node --import tsx --test tests/unit/*.test.ts",
-    "test:integration": "node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ../../scripts/test-integration.mjs"
+    "test:integration": "node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ../../scripts/test-integration.mjs",
+    "db:seed-document-profiles": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local src/scripts/seed-document-profiles.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

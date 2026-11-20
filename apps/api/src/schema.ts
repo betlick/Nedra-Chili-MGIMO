@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, timestamp, check, index, boolean, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, date, check, index, boolean, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 export const groups = pgTable('groups', {
@@ -21,6 +21,21 @@ export const users = pgTable('users', {
   groupId: uuid('group_id').references(() => groups.id),
   createdAt: createdAt(),
 }, t => [index('users_group_idx').on(t.groupId), check('user_role_valid', sql`${t.role} in ('student', 'teacher', 'staff')`), check('student_requires_group', sql`${t.role} <> 'student' or ${t.groupId} is not null`), check('email_normalized', sql`${t.email} = lower(trim(${t.email}))`)]);
+
+export const studentDocumentProfiles = pgTable('student_document_profiles', {
+  studentId: uuid('student_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  birthDate: date('birth_date').notNull(),
+  studyForm: text('study_form').notNull(),
+  fundingBasis: text('funding_basis').notNull(),
+  enrollmentDate: date('enrollment_date').notNull(),
+  enrollmentOrder: text('enrollment_order').notNull(),
+  expectedGraduationDate: date('expected_graduation_date').notNull(),
+  phone: text('phone').notNull(),
+  enrollmentStatus: text('enrollment_status').notNull(),
+  source: text('source').notNull().default('demo'),
+  createdAt: createdAt(),
+}, t => [check('document_profile_dates', sql`${t.birthDate} < ${t.enrollmentDate} and ${t.enrollmentDate} < ${t.expectedGraduationDate}`),
+  check('document_profile_status', sql`${t.enrollmentStatus} in ('active', 'suspended', 'withdrawn', 'graduated')`)]);
 
 export const sessions = pgTable('sessions', {
   tokenHash: text('token_hash').primaryKey(),

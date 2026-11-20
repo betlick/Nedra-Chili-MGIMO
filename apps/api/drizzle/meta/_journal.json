@@ -99,6 +99,13 @@
       "when": 1795085936216,
       "tag": "0013_wet_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795165250255,
+      "tag": "0014_fast_cyclops",
+      "breakpoints": true
     }
   ]
 }

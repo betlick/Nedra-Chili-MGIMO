@@ -11,6 +11,7 @@ import { requestPdf } from './request-pdf.js';
 import { notifications, requests, users, groups } from './schema.js';
 import { publishPush, type PushNotice, type PushService } from './push.js';
 import { typeChangeNotice } from './request-notice.js';
+import { documentData } from './document-data.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai' };
 export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService) {
@@ -27,6 +28,17 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     return { ...p, program:p.program!, year:p.year!, groupName:p.groupName!, purpose:row.purpose, templateVersion:'study-v2' };
   }
   const failure = (code: string, message: string) => ({ error: { code, message } });
+  app.get('/api/requests/document-data', async (req, reply) => {
+    const id = await student(req, reply); if (!id) return;
+    return { data: await documentData(db, id) };
+  });
+  app.get<{ Params: { id: string } }>('/api/staff/requests/:id/document-data', async (req, reply) => {
+    if (!await staff(req, reply)) return;
+    const requestId = uuid(req.params.id);
+    const [row] = await db.select({ studentId: requests.studentId }).from(requests).where(eq(requests.id, requestId));
+    if (!row) fail(404, 'Заявка не найдена');
+    return { data: await documentData(db, row.studentId) };
+  });
   app.get('/api/requests/options', async (req, reply) => {
     if (!await student(req, reply)) return;
     return {data:{aiEnabled:aiConfigured(),aiTypes:AI_REQUEST_TYPES}};

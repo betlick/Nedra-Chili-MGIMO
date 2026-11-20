@@ -2,6 +2,7 @@ import { hash, argon2id } from 'argon2';
 import { randomBytes } from 'node:crypto';
 import { connectDatabase, databaseErrorCode } from '../db.js';
 import { and, eq, isNull } from 'drizzle-orm';
+import { seedDocumentProfiles } from '../document-data.js';
 
 // День недели (0 = пн), начало, конец, предмет, вид, преподаватель, аудитория. Все данные вымышлены.
 const weekly: [number, string, string, string, string, string, string][] = [
@@ -88,6 +89,7 @@ try {
     if (hashes[2]) await tx.insert(users).values({ email: 'teacher@mukpid.ru', role: 'teacher', fullName: 'Орлов Андрей Викторович (демо)', faculty: 'Факультет цифровой экономики', department: 'Кафедра прикладных систем', passwordHash: hashes[2]! }).onConflictDoNothing({ target: users.email });
     if (hashes[3]) await tx.insert(users).values({ email: 'staff@staff.mukpid.ru', role: 'staff', fullName: 'Тестова Вера Демонстрационная', faculty: 'Учебный офис', passwordHash: hashes[3]! }).onConflictDoNothing({ target: users.email });
   });
+  await connection.db.transaction(tx => seedDocumentProfiles(tx));
   // Explicit fictional curriculum; never infer assignments for arbitrary existing users.
   await connection.db.transaction(async tx => {
     const [teacher] = await tx.select().from(users).where(eq(users.email,'teacher@mukpid.ru'));
