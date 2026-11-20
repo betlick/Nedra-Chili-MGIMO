@@ -28,6 +28,10 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     const create = (payload: object, i = 0) => app.inject({ method: 'POST', url: '/api/requests', headers: { ...csrf, cookie: cookies[i]! }, payload });
     const cancel = (id: string, i = 0) => app.inject({ method: 'PATCH', url: `/api/requests/${id}/cancel`, headers: { ...csrf, cookie: cookies[i]! } });
     const documentData = (i: number, query = '') => app.inject({ method: 'GET', url: '/api/requests/document-data' + query, headers: { cookie: cookies[i]! } });
+    for (const i of [0, 1, 2]) assert.equal((await app.inject({method:'GET',url:'/api/staff/documents/converter',headers:{cookie:cookies[i]!}})).statusCode,403);
+    const diagnostics=await app.inject({method:'GET',url:'/api/staff/documents/converter',headers:{cookie:cookies[3]!}});
+    assert.equal(diagnostics.statusCode,200);
+    assert.deepEqual(Object.keys(diagnostics.json().data).sort(),['busy','cpuLimitMillicores','lastResult','memoryLimitMiB','memoryUsedMiB']);
     assert.equal((await app.inject({ method: 'GET', url: '/api/requests/document-data' })).statusCode, 401);
     assert.equal((await documentData(2)).statusCode, 403);
     assert.equal((await documentData(3)).statusCode, 403);

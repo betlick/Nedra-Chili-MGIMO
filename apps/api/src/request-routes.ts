@@ -12,7 +12,7 @@ import { publishPush, type PushNotice, type PushService } from './push.js';
 import { typeChangeNotice } from './request-notice.js';
 import { documentData } from './document-data.js';
 import { documentSnapshot, filledDocx, isTemplateType, originalTemplate, sameSnapshot } from './request-document.js';
-import { docxToPdf } from './document-converter.js';
+import { converterDiagnostics, docxToPdf } from './document-converter.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai'; assignmentId?: string };
 export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService, convertDocument = docxToPdf) {
@@ -25,6 +25,10 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     if (!a || !u?.groupId || a.groupId !== u.groupId) fail(403, 'Нет доступа к дисциплине этой группы');
   }
   const failure = (code: string, message: string) => ({ error: { code, message } });
+  app.get('/api/staff/documents/converter', async (req, reply) => {
+    if (!await staff(req, reply)) return;
+    return { data: await converterDiagnostics() };
+  });
   app.get('/api/requests/document-data', async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
     return { data: await documentData(db, id) };

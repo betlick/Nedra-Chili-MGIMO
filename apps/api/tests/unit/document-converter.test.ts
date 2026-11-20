@@ -8,6 +8,7 @@ test('missing converter returns a bounded error and releases its concurrency slo
   try{
     for(let i=0;i<2;i++) await assert.rejects(docxToPdf(Buffer.from('not a real document')),error=>{
       assert.equal((error as {statusCode:number}).statusCode,503);
+      assert.equal((error as {code:string}).code,'DOCUMENT_CONVERTER_MISSING');
       assert.ok(!(error as Error).message.includes('/nonexistent'));
       assert.match((error as Error).message,/Не удалось сформировать/);
       return true;
