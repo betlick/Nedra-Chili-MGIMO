@@ -1,8 +1,8 @@
 import { requestNotice } from './smart-notices.js';
-import { AI_REQUEST_TYPES, aiConfigured, prepareAiNote } from './request-ai.js';
+import { AI_REQUEST_TYPES, aiConfigured } from './request-ai.js';
 import { REQUEST_TYPE_IDS } from './request-types.js';
 import { randomUUID } from 'node:crypto';
-import { bodyObject, fail, uuid, type DbSession } from './domain.js';
+import { bodyObject, DomainError, fail, uuid, type DbSession } from './domain.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { desc, eq } from 'drizzle-orm';
 import type { connectDatabase } from './db.js';
@@ -12,12 +12,14 @@ import { publishPush, type PushNotice, type PushService } from './push.js';
 import { typeChangeNotice } from './request-notice.js';
 import { documentData } from './document-data.js';
 import { documentSnapshot, filledDocx, isTemplateType, originalTemplate, sameSnapshot } from './request-document.js';
-import { converterDiagnostics, docxToPdf } from './document-converter.js';
+import { converterDiagnostics } from './document-converter.js';
+import { requestTemplatePdf } from './request-template-pdf.js';
+import {automationMessages,prepareRequestAutomation,staffFallback} from './request-automation.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai'; assignmentId?: string };
-export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService, convertDocument = docxToPdf) {
+export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService, convertDocument = requestTemplatePdf) {
   const aiWindows = new Map<string, {start:number; count:number}>();
-  const publicRow = ({ documentBase64, documentDocxBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => ({ ...row, docxAvailable: Boolean(documentDocxBase64) && ['ready','issued'].includes(row.status) });
+  const publicRow = ({ documentBase64, documentDocxBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => ({ ...row, docxAvailable: Boolean(documentDocxBase64) && ['ready','issued'].includes(row.status), preparedAvailable: Boolean(row.aiPreparedAt && documentDocxBase64 && documentBase64 && row.type==='retake' && row.delivery==='pdf' && ['submitted','in_progress'].includes(row.status)) });
   const snapshot = documentSnapshot;
   async function checkAssignment(tx: DbSession, studentId: string, assignmentId: string) {
     const [u] = await tx.select({ groupId: users.groupId }).from(users).where(eq(users.id, studentId)).for('share');
@@ -75,17 +77,45 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     const pushed: PushNotice[] = [];
     const mode = req.body.processingMode ?? 'staff';
     if (mode === 'ai') {
+      if (!AI_REQUEST_TYPES.includes(req.body.type as 'study'|'retake')) fail(400,'Эту тему обрабатывает сотрудник');
+      if (!aiConfigured()) fail(503,'YandexGPT пока не настроен. Выберите сотрудника');
       const now=Date.now();
       for (const [key, value] of aiWindows) if(now-value.start>=60000) aiWindows.delete(key);
       const window=aiWindows.get(id)??{start:now,count:0};
       if(window.count>=5) fail(429,'Не более пяти ИИ-заявок в минуту');
       window.count++; aiWindows.set(id,window);
     }
-    const aiNote = mode === 'ai' ? await prepareAiNote(req.body) : null;
+    const createdAt=new Date(),requestId=randomUUID();
+    const sourceRow={studentId:id,type:req.body.type,assignmentId:req.body.assignmentId??null,purpose:req.body.purpose.trim(),createdAt,aiPurpose:null};
+    let automation=mode==='ai'?await prepareRequestAutomation(db,sourceRow,req.body.comment?.trim()??'',convertDocument):null;
+    if(mode==='ai'&&!await student(req,reply))return;
     const result = await db.transaction(async tx => {
-      if (req.body.type === 'retake') await checkAssignment(tx, id, req.body.assignmentId!);
-      const [row] = await tx.insert(requests).values({ studentId: id, assignmentId: req.body.assignmentId ?? null, processingMode: mode, aiNote, type: req.body.type, purpose: req.body.purpose.trim(), comment: req.body.comment?.trim() ?? '', delivery: req.body.delivery }).returning();
-      pushed.push(...await tx.insert(notifications).values({ studentId: id, requestId: row!.id, ...requestNotice(row!, null, 'submitted') }).returning());
+      if (req.body.type === 'retake') {
+        try{await checkAssignment(tx,id,req.body.assignmentId!)}catch(error){
+          if(mode==='ai'&&error instanceof DomainError&&error.statusCode===403){automation=staffFallback('data_changed');sourceRow.assignmentId=null;}else throw error;
+        }
+      }
+      if(automation?.snapshot&&automation.source){
+        try{if(!sameSnapshot(automation.source,await snapshot(tx,sourceRow)))automation=staffFallback('data_changed')}
+        catch(error){if(error instanceof DomainError&&error.statusCode===409)automation=staffFallback('data_changed');else throw error}
+      }
+      const prepared=!!automation?.snapshot,automatic=prepared&&req.body.type==='study'&&req.body.delivery==='pdf';
+      const now=new Date();
+      const [row] = await tx.insert(requests).values({id:requestId,...sourceRow,processingMode:mode,
+        comment:req.body.comment?.trim()??'',delivery:req.body.delivery,
+        aiNote:mode==='ai'?(prepared?(automatic?'Справка заполнена с YandexGPT, реквизиты проверены сервером. Документ подготовлен автоматически.':req.body.type==='retake'?'YandexGPT подготовил заявление. Решение о допуске принимает сотрудник.':'YandexGPT заполнил бланк. Бумажную выдачу подготовит сотрудник.'):automationMessages[automation?.reason??'provider_error']):null,
+        aiPurpose:prepared&&req.body.type==='retake'?automation!.snapshot!.fields!.PURPOSE:null,
+        aiPreparedAt:prepared?now:null,automatedAt:automatic?now:null,
+        automationReason:mode==='ai'?(prepared?(automatic?null:req.body.type==='retake'?'approval_required':'paper_delivery'):automation?.reason??'provider_error'):null,
+        status:automatic?'ready':'submitted',readyAt:automatic?now:null,
+        draftId:prepared?randomUUID():null,draftSnapshot:automation?.snapshot??null,
+        documentBase64:automation?.pdf?.toString('base64')??null,documentDocxBase64:automation?.docx?.toString('base64')??null,
+      }).returning();
+      pushed.push(...await tx.insert(notifications).values({studentId:id,requestId:row!.id,...requestNotice(row!,null,'submitted')}).returning());
+      if(automatic){
+        const notice=requestNotice(row!,'submitted','ready');
+        pushed.push(...await tx.insert(notifications).values({studentId:id,requestId:row!.id,...notice,body:notice.body+' Справка подготовлена автоматически после проверки реквизитов.'}).returning());
+      }
       return row;
     });
     publishPush(push, pushed, app.log);
@@ -167,7 +197,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       if (r.type === req.body.type) return r;
       // Черновик справки готовился под прежний вид — сбрасываем его, проверку нужно пройти заново.
       const [updated] = await tx.update(requests).set({ type: req.body.type, previousType: r.type, typeChangedBy: staffId, typeChangedAt: new Date(), updatedAt: new Date(),
-        assignmentId: null, documentBase64: null, documentDocxBase64: null, draftId: null, draftSnapshot: null, verifiedAt: null, verifiedBy: null, previewedAt: null }).where(eq(requests.id, r.id)).returning();
+        aiPurpose:null, aiPreparedAt:null, automatedAt:null, automationReason:null, assignmentId: null, documentBase64: null, documentDocxBase64: null, draftId: null, draftSnapshot: null, verifiedAt: null, verifiedBy: null, previewedAt: null }).where(eq(requests.id, r.id)).returning();
       pushed.push(...await tx.insert(notifications).values({ studentId: r.studentId, kind: 'request', requestId: r.id, ...typeChangeNotice(updated!, r.type) }).returning());
       return updated!;
     });
@@ -221,6 +251,21 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     });
     return reply.type('application/pdf').header('X-Content-Type-Options','nosniff').header('Content-Disposition','attachment; filename="preview.pdf"').send(pdf);
   });
+  for(const format of ['pdf','docx'] as const){
+    app.get<{Params:{id:string}}>(`/api/requests/:id/prepared/${format}`,async(req,reply)=>{
+      const id=await student(req,reply);if(!id)return;
+      const file=await db.transaction(async tx=>{
+        const [row]=await tx.select().from(requests).where(eq(requests.id,uuid(req.params.id))).for('share');
+        if(!row)fail(404,'Заявка не найдена');if(row.studentId!==id)fail(403,'Нет доступа к заявке');
+        if(row.type!=='retake'||row.processingMode!=='ai'||!row.aiPreparedAt||row.delivery!=='pdf'||!['submitted','in_progress'].includes(row.status)||!row.draftSnapshot)fail(409,'Подготовленное заявление недоступно');
+        if(!sameSnapshot(row.draftSnapshot,await snapshot(tx,row)))fail(409,'Сведения изменились. Заявление должен проверить сотрудник');
+        const data=format==='pdf'?row.documentBase64:row.documentDocxBase64;
+        if(!data)fail(409,'Файл пока не подготовлен');return Buffer.from(data,'base64');
+      });
+      return reply.type(format==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        .header('X-Content-Type-Options','nosniff').header('Content-Disposition',`attachment; filename="application-awaiting-decision.${format}"`).send(file);
+    });
+  }
   for (const isStaff of [false, true]) {
     app.get<{Params:{id:string}}>(isStaff ? '/api/staff/requests/:id/docx' : '/api/requests/:id/docx', async(req,reply)=>{
       const id=await (isStaff?staff:student)(req,reply);if(!id)return;

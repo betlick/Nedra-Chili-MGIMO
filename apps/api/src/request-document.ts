@@ -17,11 +17,16 @@ export async function originalTemplate(type: string) {
 }
 
 const template = (type: 'study' | 'retake') => readFile(new URL(`fillable/${type}.docx`, assets));
+export async function documentFieldNames(type: 'study' | 'retake') {
+  const xml = strFromU8(unzipSync(await template(type))['word/document.xml']!);
+  return [...new Set([...xml.matchAll(/\{\{([A-Z_]+)\}\}/g)].map(m => m[1]!))].sort();
+}
 const ruDate = (date: string | Date) => new Date(typeof date === 'string' ? date + 'T12:00:00Z' : date)
   .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Moscow' });
 
 /** Lock source rows so facts cannot change while verification/issuance commits. */
-export async function documentSnapshot(db: DbSession, row: typeof requests.$inferSelect): Promise<DocumentSnapshot> {
+export type DocumentInput = Pick<typeof requests.$inferSelect, 'studentId'|'type'|'assignmentId'|'purpose'|'createdAt'|'aiPurpose'>;
+export async function documentSnapshot(db: DbSession, row: DocumentInput): Promise<DocumentSnapshot> {
   if (!isTemplateType(row.type)) fail(409, 'Для этой темы нет автоматического заполнения');
   const [u] = await db.select().from(users).where(eq(users.id, row.studentId)).for('share');
   if (!u || !u.groupId) fail(409, 'Профиль студента или группа не найдены');
@@ -40,7 +45,7 @@ export async function documentSnapshot(db: DbSession, row: typeof requests.$infe
     FULL_NAME: u.fullName, FACULTY: u.faculty, PROGRAM: g!.program, YEAR: String(g!.year), GROUP_NAME: g!.name,
     BIRTH_DATE: ruDate(p!.birthDate), STUDY_FORM_GENITIVE: studyForm, FUNDING_BASIS: p!.fundingBasis,
     ENROLLMENT_DATE: ruDate(p!.enrollmentDate), ENROLLMENT_ORDER: p!.enrollmentOrder,
-    GRADUATION_DATE: ruDate(p!.expectedGraduationDate), PHONE: p!.phone, PURPOSE: row.purpose,
+    GRADUATION_DATE: ruDate(p!.expectedGraduationDate), PHONE: p!.phone, PURPOSE: row.aiPurpose ?? row.purpose,
     APPLICATION_DATE: ruDate(row.createdAt), PROFILE_SOURCE: p!.source,
   };
   if (row.type === 'retake') {

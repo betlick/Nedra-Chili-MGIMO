@@ -42,6 +42,11 @@ export type RequestStage = 0 | 1 | 2 | 3 // Принята, В работе, Г�
 export type Delivery = 'pdf' | 'office'
 
 export interface StudentRequest {
+  aiPurpose?: string | null
+  aiPreparedAt?: string | null
+  automatedAt?: string | null
+  automationReason?: string | null
+  preparedAvailable?: boolean
   assignmentId?: string | null
   docxAvailable?: boolean
   processingMode?: 'staff'|'ai'

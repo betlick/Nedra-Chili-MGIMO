@@ -51,6 +51,11 @@ export const authApi = {
 /* ── Кабинет сотрудника деканата ─────────────────────────── */
 export type ApiRequestStatus = 'submitted' | 'in_progress' | 'ready' | 'rejected' | 'issued' | 'cancelled'
 export interface ApiStaffRequest {
+  aiPurpose: string | null
+  aiPreparedAt: string | null
+  automatedAt: string | null
+  automationReason: string | null
+  preparedAvailable: boolean
   assignmentId: string | null
   docxAvailable: boolean
   processingMode: 'staff'|'ai'

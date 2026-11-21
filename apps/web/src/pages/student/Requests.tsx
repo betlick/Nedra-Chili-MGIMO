@@ -134,7 +134,7 @@ export function RequestsPage() {
           <div className="field">
             <span className="field__label" id="req-type-label">Что нужно оформить</span>
             <Segmented label="Обработка заявки" value={processingMode} onChange={(mode:'staff'|'ai')=>{setProcessingMode(mode);if(mode==='ai'&&!aiOptions.aiTypes.includes(type))setType(aiOptions.aiTypes[0]??'study')}} options={[{value:'staff',label:'Сотрудник'},{value:'ai',label:'ИИ · YandexGPT'}]} />
-            <p className="small muted">{processingMode==='ai' ? 'ИИ подготовит подсказку по заполнению. Решение и выдача документа — после проверки сотрудником.' : 'Все 16 тем и «Другое». Заявку проверит сотрудник деканата.'}</p>
+            <p className="small muted">{processingMode==='ai' ? type === 'study' ? 'ИИ заполнит справку из учебного профиля. При успешной проверке реквизитов электронный документ появится автоматически. Если сведений не хватит, заявка уйдёт сотруднику.' : 'ИИ подготовит заполненное заявление. Сотрудник рассмотрит просьбу и примет решение о допуске.' : 'Все 16 тем и «Другое». Заявку проверит сотрудник деканата.'}</p>
             {processingMode==='ai'&&!aiOptions.aiEnabled&&<p className="field__error">YandexGPT пока не настроен. Выберите сотрудника.</p>}
             <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" allowed={processingMode==='ai'?aiOptions.aiTypes:undefined} />
             {type !== 'other' && <Button variant="ghost" type="button" onClick={() => void downloadFile(`/api/requests/templates/${type}`, `template-${type}.docx`).catch(e => toast(e.message))}>Скачать исходный бланк DOCX</Button>}
@@ -251,7 +251,13 @@ export function RequestsPage() {
                   {!['cancelled','rejected'].includes(r.status) && <Stages stages={REQUEST_STAGES} current={r.stage} />}
                 {r.rejectionReason && <p role="alert">Причина отказа: {r.rejectionReason}</p>}
                 {r.comment && <blockquote className="req__comment">«{r.comment}»</blockquote>}
+                {r.automatedAt && <p className="small">Справка подготовлена автоматически. Реквизиты сверены с учебным профилем.</p>}
+                {r.preparedAvailable && <p className="small muted">Заявление подготовлено. Оно ожидает решения сотрудника и не подтверждает допуск к пересдаче.</p>}
                 <div className="req__actions">
+                  {r.preparedAvailable && <>
+                    <Button variant="surface" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/prepared/pdf`, 'application-awaiting-decision.pdf').catch(e => toast(e.message))}>Подготовленное заявление PDF</Button>
+                    <Button variant="surface" onClick={() => void downloadFile(`/api/requests/${r.id}/prepared/docx`, 'application-awaiting-decision.docx').catch(e => toast(e.message))}>DOCX заявления</Button>
+                  </>}
                   {['ready','issued'].includes(r.status) && r.delivery === 'pdf' && (<>
                     <Button variant="primary" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/pdf`, `request-${r.id}.pdf`).catch(e => toast(e.message))}>
                       Скачать PDF

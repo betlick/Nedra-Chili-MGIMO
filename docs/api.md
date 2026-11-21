@@ -187,3 +187,15 @@ GET `/api/ai/grades-insight` — только student (без сессии 401, 
 - Предпросмотр содержит сам заполненный демонстрационный бланк и доступен только staff. Он не имеет водяного знака «черновик», чтобы просмотренные байты точно совпадали с выдаваемым PDF. Контроль статуса и доступа остаётся на сервере. Остальные темы пока используют прежний демонстрационный PDF обработки; их исходные DOCX доступны для ручного заполнения.
 
 - `GET /api/staff/documents/converter` — только staff: busy, lastResult, cpuLimitMillicores, memoryLimitMiB, memoryUsedMiB (cgroup v2/v1; неизвестные лимиты — null). Не возвращает команды, пути, окружение или данные документов. Ошибки preview имеют безопасные коды DOCUMENT_CONVERTER_MISSING/START_FAILED/TIMEOUT/SIGNAL/EXIT_N и DOCUMENT_OUTPUT_MISSING/INVALID, без stderr и исходных ошибок ОС.
+
+Основной PDF-рендерер двух бланков: request-template-pdf.ts читает текст/абзацы и эмблему из заполненного DOCX и формирует PDF средствами PDFKit. Он предназначен только для двух контролируемых шаблонов, не является универсальным конвертером Word. Liberation Serif поставляется с OFL-лицензией; исходные DOCX не меняются. В основном процессе LibreOffice не запускается.
+
+## Автоматизация YandexGPT
+
+POST /api/requests в режиме ai читает профиль автора, отправляет только поля соответствующего бланка и комментарий в YandexGPT, принимает JSON fields/missing и проверяет ключи и значения. Все реквизиты обязаны совпадать с БД; study PURPOSE тоже сохраняется дословно с нормализацией пробелов. Только retake PURPOSE может переформулироваться (aiPurpose), так как решение всегда принимает сотрудник.
+
+Успешная электронная study получает ready и automatedAt без verifiedBy. Retake получает aiPreparedAt и automationReason=approval_required, остаётся submitted. Для бумажной выдачи — paper_delivery. При ошибке провайдера/формата/фактов/профиля/рендеринга заявка сохраняется submitted с безопасным aiNote и automationReason, без выдачи. После вызова модели сессия повторно проверяется, а в финальной транзакции повторно сверяются исходные сведения.
+
+GET /api/requests/:id/prepared/pdf или /docx — собственное AI-заявление retake в submitted/in_progress при delivery=pdf; проверяются сессия, владелец и актуальность снимка. Файл не является разрешением на пересдачу. preparedAvailable сообщает о наличии такой загрузки.
+
+Переменные Amvera: YANDEX_API_KEY — секрет, YANDEX_MODEL_URI — URI модели, например gpt://<folder-id>/yandexgpt-5.1. Ключ сервисного аккаунта: роль ai.languageModels.user, scope yc.ai.languageModels.execute. Основной рендерер PDFKit использует заполненный исходный DOCX и встроенные Liberation Serif; LibreOffice в production-контейнере больше не устанавливается.

@@ -151,7 +151,7 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
     // AI notes remain isolated by the same owner/session checks as other requests.
     const originalFetch=globalThis.fetch, originalKey=process.env.YANDEX_API_KEY, originalUri=process.env.YANDEX_MODEL_URI;
     process.env.YANDEX_API_KEY='integration-only-key';process.env.YANDEX_MODEL_URI='gpt://demo/yandexgpt/latest';
-    globalThis.fetch=async()=>new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:'Уточните семестр для демозаявки.'}}]}}));
+    globalThis.fetch=async(_url,init)=>{const input=JSON.parse(JSON.parse(String(init?.body)).messages[1].text);return new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:JSON.stringify({fields:input.trustedFields,missing:[]})}}]}}))};
     try {
       const options=await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[0]!}});
       assert.equal((await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[2]!}})).statusCode,403);
@@ -159,16 +159,17 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       assert.equal((await create({...input,type:'other',processingMode:'ai'})).statusCode,400);
       const ai=await create({...input,processingMode:'ai'});
       assert.equal(ai.statusCode,201);const aiRow=ai.json().data;
-      assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'submitted');
-      assert.equal(aiRow.aiNote,'Уточните семестр для демозаявки.');
+      assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'ready');assert.ok(aiRow.automatedAt);assert.equal(aiRow.verifiedBy,null);
+      assert.match(aiRow.aiNote,/проверены сервером/);
+      assert.equal((await app.inject({method:'GET',url:`/api/requests/${aiRow.id}/pdf`,headers:{cookie:cookies[0]!}})).statusCode,200);
       assert.equal((await list(1)).json().data.some((r:{id:string})=>r.id===aiRow.id),false);
       assert.equal((await cancel(aiRow.id,1)).statusCode,403);
       const allStaff=(await app.inject({method:'GET',url:'/api/staff/requests',headers:{cookie:cookies[3]!}})).json().data;
       assert.equal(allStaff.find((r:{id:string})=>r.id===aiRow.id).aiNote,aiRow.aiNote);
       globalThis.fetch=async()=>new Response('unavailable',{status:503});
       const count=(await list(0)).json().data.length;
-      assert.equal((await create({...input,processingMode:'ai'})).statusCode,502);
-      assert.equal((await list(0)).json().data.length,count);
+      const failed=await create({...input,processingMode:'ai'});assert.equal(failed.statusCode,201);assert.equal(failed.json().data.status,'submitted');assert.equal(failed.json().data.automationReason,'provider_error');
+      assert.equal((await list(0)).json().data.length,count+1);
     } finally {
       globalThis.fetch=originalFetch;
       if(originalKey===undefined)delete process.env.YANDEX_API_KEY;else process.env.YANDEX_API_KEY=originalKey;
