@@ -138,6 +138,18 @@ export function TodayTimeline({ lessons, who }: { lessons: Lesson[]; who: 'teach
   const list = todayLessons(lessons, now)
   const next = nextLesson(lessons, now)
   const lastEnd = list.length ? list[list.length - 1].end : ''
+  if (list.length === 0) {
+    // пустой день — одна строка с переходом в расписание, без пустой карточки
+    return (
+      <section className="card today-empty" aria-label="Сегодня">
+        <span className="today-empty__icon" aria-hidden="true"><Icon name="calendar" size={20} /></span>
+        <p className="today-empty__text"><b>Сегодня занятий нет</b></p>
+        <Link to={who === 'teacher' ? '/student/schedule' : '/teacher/schedule'} className="link">
+          Расписание <Icon name="arrowRight" size={14} />
+        </Link>
+      </section>
+    )
+  }
   return (
     <section className="card">
       <div className="card__head">
@@ -147,7 +159,6 @@ export function TodayTimeline({ lessons, who }: { lessons: Lesson[]; who: 'teach
           {who === 'teacher' && lastEnd ? ` · до ${lastEnd}` : ''}
         </span>
       </div>
-      {list.length === 0 && <p className="muted">Сегодня занятий нет.</p>}
       <ol className="timeline">
         {list.map((l) => {
           const past = toMinutes(l.end) <= nowMinutes(now)

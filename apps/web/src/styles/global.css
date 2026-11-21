@@ -3418,7 +3418,7 @@ html.lock-scroll body {
   width: 330px;
   padding: 16px 16px 12px;
   border-radius: 24px;
-  background: var(--surface);
+  background: var(--surface-solid, var(--surface));
   border: 1px solid var(--line);
   box-shadow: 0 24px 60px rgba(14, 18, 28, 0.18), 0 4px 14px rgba(14, 18, 28, 0.08);
   transform-origin: 50% -12px;
@@ -3440,7 +3440,7 @@ html.lock-scroll body {
   left: calc(50% - 7px);
   width: 14px;
   height: 14px;
-  background: var(--surface);
+  background: var(--surface-solid, var(--surface));
   border-left: 1px solid var(--line);
   border-top: 1px solid var(--line);
   transform: rotate(45deg);
@@ -8475,5 +8475,38 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
   }
   .myreq__head {
     flex-wrap: wrap;
+  }
+}
+
+/* ═════════ «Сегодня» без занятий: одна строка вместо пустой карточки ═════════ */
+.today-empty {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+}
+.today-empty__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.today-empty__text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+.today-empty .link {
+  flex: none;
+}
+@media (max-width: 440px) {
+  .today-empty__icon {
+    display: none;
   }
 }
