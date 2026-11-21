@@ -157,7 +157,9 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       assert.equal((await app.inject({method:'GET',url:'/api/requests/options',headers:{cookie:cookies[2]!}})).statusCode,403);
       assert.equal(options.statusCode,200);assert.equal(options.json().data.aiEnabled,true);
       assert.equal((await create({...input,type:'other',processingMode:'ai'})).statusCode,400);
-      const ai=await create({...input,processingMode:'ai'});
+      const other=await create({...input,type:'other'});
+      assert.equal(other.statusCode,201);assert.equal(other.json().data.processingMode,'staff');
+      const ai=await create(input);
       assert.equal(ai.statusCode,201);const aiRow=ai.json().data;
       assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'ready');assert.ok(aiRow.automatedAt);assert.equal(aiRow.verifiedBy,null);
       assert.match(aiRow.aiNote,/проверены сервером/);
@@ -168,7 +170,7 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       assert.equal(allStaff.find((r:{id:string})=>r.id===aiRow.id).aiNote,aiRow.aiNote);
       globalThis.fetch=async()=>new Response('unavailable',{status:503});
       const count=(await list(0)).json().data.length;
-      const failed=await create({...input,processingMode:'ai'});assert.equal(failed.statusCode,201);assert.equal(failed.json().data.status,'submitted');assert.equal(failed.json().data.automationReason,'provider_error');
+      const failed=await create(input);assert.equal(failed.statusCode,201);assert.equal(failed.json().data.status,'submitted');assert.equal(failed.json().data.automationReason,'provider_error');
       assert.equal((await list(0)).json().data.length,count+1);
     } finally {
       globalThis.fetch=originalFetch;

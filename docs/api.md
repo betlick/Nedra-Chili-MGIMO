@@ -199,3 +199,7 @@ POST /api/requests в режиме ai читает профиль автора, 
 GET /api/requests/:id/prepared/pdf или /docx — собственное AI-заявление retake в submitted/in_progress при delivery=pdf; проверяются сессия, владелец и актуальность снимка. Файл не является разрешением на пересдачу. preparedAvailable сообщает о наличии такой загрузки.
 
 Переменные Amvera: YANDEX_API_KEY — секрет, YANDEX_MODEL_URI — URI модели, например gpt://<folder-id>/yandexgpt-5.1. Ключ сервисного аккаунта: роль ai.languageModels.user, scope yc.ai.languageModels.execute. Основной рендерер PDFKit использует заполненный исходный DOCX и встроенные Liberation Serif; LibreOffice в production-контейнере больше не устанавливается.
+
+## Автоматический выбор обработки от 21 ноября 2026
+
+Новый интерфейс не отправляет processingMode и показывает все 17 тем без переключателя «Сотрудник / ИИ». Если processingMode отсутствует, POST /api/requests выбирает ai для study/retake при настроенном провайдере, иначе staff. Явное значение поддерживается для совместимости. Ошибки модели и неполные данные сохраняют заявку для сотрудника; retake не подтверждается автоматически.

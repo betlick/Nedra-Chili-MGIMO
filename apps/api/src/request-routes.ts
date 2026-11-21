@@ -75,7 +75,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       await db.transaction(tx => checkAssignment(tx, id, req.body.assignmentId!));
     } else if (req.body.assignmentId) fail(400, 'Дисциплина выбирается только для пересдачи');
     const pushed: PushNotice[] = [];
-    const mode = req.body.processingMode ?? 'staff';
+    const mode = req.body.processingMode ?? (aiConfigured() && AI_REQUEST_TYPES.includes(req.body.type as 'study'|'retake') ? 'ai' : 'staff');
     if (mode === 'ai') {
       if (!AI_REQUEST_TYPES.includes(req.body.type as 'study'|'retake')) fail(400,'Эту тему обрабатывает сотрудник');
       if (!aiConfigured()) fail(503,'YandexGPT пока не настроен. Выберите сотрудника');

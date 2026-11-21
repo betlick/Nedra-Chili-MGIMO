@@ -18,7 +18,6 @@ type Target = 'dean' | 'teacher'
 export function RequestsPage() {
   const { requests, addRequest, cancelRequest, unreadCount, reload, inquiries } = useData()
   const toast = useToast()
-  const [processingMode, setProcessingMode] = useState<'staff'|'ai'>('staff')
   const [aiOptions,setAiOptions] = useState<{aiEnabled:boolean;aiTypes:RequestType[]}>({aiEnabled:false,aiTypes:[]})
   useEffect(()=>{let live=true;dataApi.requestOptions().then(v=>{if(live)setAiOptions(v)}).catch(()=>{});return()=>{live=false}},[])
   const [type, setType] = useState<RequestType>('study')
@@ -88,7 +87,7 @@ export function RequestsPage() {
     }
     if (type === 'other' && !comment.trim()) return setCommentError('Опишите, что нужно, — иначе деканат не поймёт обращение')
     setBusy(true)
-    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery, processingMode, ...(type === 'retake' ? {assignmentId} : {}) })
+    const ok = await addRequest({ type, purpose: purpose.trim(), comment: comment.trim(), delivery, ...(type === 'retake' ? {assignmentId} : {}) })
     setBusy(false)
     if (!ok) return
     setPurpose('')
@@ -133,12 +132,13 @@ export function RequestsPage() {
           {target === 'dean' && (
           <div className="field">
             <span className="field__label" id="req-type-label">Что нужно оформить</span>
-            <Segmented label="Обработка заявки" value={processingMode} onChange={(mode:'staff'|'ai')=>{setProcessingMode(mode);if(mode==='ai'&&!aiOptions.aiTypes.includes(type))setType(aiOptions.aiTypes[0]??'study')}} options={[{value:'staff',label:'Сотрудник'},{value:'ai',label:'ИИ · YandexGPT'}]} />
-            <p className="small muted">{processingMode==='ai' ? type === 'study' ? 'ИИ заполнит справку из учебного профиля. При успешной проверке реквизитов электронный документ появится автоматически. Если сведений не хватит, заявка уйдёт сотруднику.' : 'ИИ подготовит заполненное заявление. Сотрудник рассмотрит просьбу и примет решение о допуске.' : 'Все 16 тем и «Другое». Заявку проверит сотрудник деканата.'}</p>
-            {processingMode==='ai'&&!aiOptions.aiEnabled&&<p className="field__error">YandexGPT пока не настроен. Выберите сотрудника.</p>}
-            <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" allowed={processingMode==='ai'?aiOptions.aiTypes:undefined} />
+            <RequestTypePicker value={type} onChange={setType} labelId="req-type-label" />
+            <p className="small muted">{aiOptions.aiEnabled && aiOptions.aiTypes.includes(type)
+              ? type === 'study'
+                ? delivery === 'pdf' ? 'Справка будет подготовлена автоматически после проверки данных. Если сведений не хватит, заявку рассмотрит сотрудник.' : 'Справка будет подготовлена автоматически, бумажный документ выдаст сотрудник деканата.'
+                : 'Заявление будет подготовлено автоматически. Решение о допуске к пересдаче принимает сотрудник.'
+              : 'Заявку рассмотрит сотрудник деканата.'}</p>
             {type !== 'other' && <Button variant="ghost" type="button" onClick={() => void downloadFile(`/api/requests/templates/${type}`, `template-${type}.docx`).catch(e => toast(e.message))}>Скачать исходный бланк DOCX</Button>}
-            {(type === 'study' || type === 'retake') && <p className="small muted">Бланк заполнится из учебного профиля. Перед выдачей его проверит сотрудник.</p>}
           </div>
           )}
 
@@ -203,8 +203,8 @@ export function RequestsPage() {
           </div>
           </div>
 
-          <Button disabled={busy || (target==='dean' && processingMode==='ai' && !aiOptions.aiEnabled)} type="submit" variant="primary" size="lg" block>
-            {busy ? 'Обрабатываем…' : target === 'teacher' ? 'Отправить обращение' : processingMode==='ai' ? 'Подготовить с ИИ и отправить' : 'Отправить заявку'}
+          <Button disabled={busy} type="submit" variant="primary" size="lg" block>
+            {busy ? 'Обрабатываем…' : target === 'teacher' ? 'Отправить обращение' : 'Отправить заявку'}
           </Button>
         </form>
 
