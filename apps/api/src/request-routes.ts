@@ -87,7 +87,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     }
     const createdAt=new Date(),requestId=randomUUID();
     const sourceRow={studentId:id,type:req.body.type,assignmentId:req.body.assignmentId??null,purpose:req.body.purpose.trim(),createdAt,aiPurpose:null};
-    let automation=mode==='ai'?await prepareRequestAutomation(db,sourceRow,req.body.comment?.trim()??'',convertDocument):null;
+    let automation=mode==='ai'?await prepareRequestAutomation(db,sourceRow,req.body.comment?.trim()??'',convertDocument,event=>app.log.warn({event:'request_ai_validation',...event},'AI document validation failed')):null;
     if(mode==='ai'&&!await student(req,reply))return;
     const result = await db.transaction(async tx => {
       if (req.body.type === 'retake') {
