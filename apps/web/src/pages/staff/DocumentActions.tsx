@@ -24,7 +24,7 @@ export function DocumentActions({ row, reload }: { row: ApiStaffRequest; reload:
   const selected = data?.assignments.find(a => a.id === row.assignmentId);
   const canVerify = !!data && data.missing.length === 0 && data.profile?.enrollmentStatus === 'active' && (row.type !== 'retake' || !!selected);
   return <div className="stack">
-    {row.processingMode === 'ai' && <details open><summary>{row.aiPreparedAt ? 'Бланк подготовлен с YandexGPT' : 'Автоматическая обработка — требуется сотрудник'}</summary><p className="small" style={{whiteSpace:'pre-wrap'}}>{row.aiNote}</p></details>}
+    {row.processingMode === 'ai' && <details open><summary>{row.aiPreparedAt ? 'Бланк подготовлен с YandexGPT' : ['queued','processing'].includes(row.automationReason ?? '') ? 'Автоматическая подготовка документа' : 'Автоматическая обработка — требуется сотрудник'}</summary><p className="small" style={{whiteSpace:'pre-wrap'}}>{row.aiNote}</p></details>}
     {row.aiPurpose && row.aiPurpose !== row.purpose && <p className="small">Формулировка ИИ: {row.aiPurpose}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {row.type !== 'other' && <Button variant="ghost" disabled={busy} onClick={() => void run(() => downloadFile(`/api/staff/requests/templates/${row.type}`, `template-${row.type}.docx`))}>Скачать исходный бланк DOCX</Button>}

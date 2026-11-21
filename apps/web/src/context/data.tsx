@@ -73,9 +73,42 @@ export function DataProvider({ children }: {
         setError(e instanceof Error ? e.message : 'Не удалось сохранить');
         return false;
     } }, [reload]);
+    const pendingAutomation = user?.role === 'student' && requests.some(r => r.status === 'submitted' && ['queued','processing'].includes(r.automationReason ?? ''));
+    useEffect(() => {
+        if (!pendingAutomation) return;
+        let live = true, running = false;
+        const refreshRequests = async () => {
+            if (running || document.visibilityState !== 'visible') return;
+            running = true;
+            const seq = sequence.current;
+            try {
+                const rows = await dataApi.requests();
+                if (!live || seq !== sequence.current) return;
+                setRequests(p => keep(p, rows.map(requestView)));
+                if (!rows.some(r => r.status === 'submitted' && ['queued','processing'].includes(r.automationReason ?? ''))) void reload();
+            } catch { /* Keep the accepted request visible during a temporary network failure. */ }
+            finally { running = false; }
+        };
+        const timer = window.setInterval(() => void refreshRequests(), 3000);
+        return () => { live = false; clearInterval(timer); };
+    }, [pendingAutomation, reload]);
+    const addRequest = useCallback<Data['addRequest']>(async input => {
+        ++sequence.current;
+        try {
+            const created = await dataApi.addRequest(input);
+            ++sequence.current;
+            setRequests(previous => [requestView(created), ...previous.filter(r => r.id !== created.id)]);
+            setError(null);
+            void reload();
+            return true;
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Не удалось отправить заявку');
+            return false;
+        }
+    }, [reload]);
     const value = useMemo<Data>(() => ({ requests, notices, prefs, inquiries, sheets, grades, loading, error, reload, unreadCount: notices.filter(n => n.unread).length, newInquiries: inquiries.filter(q => q.status === 'new').length,
-            addRequest: r => mutate(() => dataApi.addRequest(r)), cancelRequest: id => mutate(() => dataApi.cancelRequest(id)), markRead: id => mutate(() => dataApi.read(id)), markAllRead: () => mutate(() => dataApi.readAll()), setPref: (k, v) => mutate(() => dataApi.setPrefs({ [k]: v })),
-            setInquiryStatus: (id, status) => mutate(() => dataApi.inquiryStatus(id, status)), replyInquiry: (id, text) => mutate(() => dataApi.replyInquiry(id, text)), saveSheet: s => mutate(() => dataApi.saveSheet(s.id, s.version, s.students.map(st => ({ studentId: st.id, score: st.score })))) }), [requests, notices, prefs, inquiries, sheets, grades, loading, error, reload, mutate]);
+            addRequest, cancelRequest: id => mutate(() => dataApi.cancelRequest(id)), markRead: id => mutate(() => dataApi.read(id)), markAllRead: () => mutate(() => dataApi.readAll()), setPref: (k, v) => mutate(() => dataApi.setPrefs({ [k]: v })),
+            setInquiryStatus: (id, status) => mutate(() => dataApi.inquiryStatus(id, status)), replyInquiry: (id, text) => mutate(() => dataApi.replyInquiry(id, text)), saveSheet: s => mutate(() => dataApi.saveSheet(s.id, s.version, s.students.map(st => ({ studentId: st.id, score: st.score })))) }), [requests, notices, prefs, inquiries, sheets, grades, loading, error, reload, mutate, addRequest]);
     return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 export function useData() { const v = useContext(Ctx); if (!v)

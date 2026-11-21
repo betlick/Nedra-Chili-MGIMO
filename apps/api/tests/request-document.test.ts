@@ -94,13 +94,15 @@ test('original document workflow: two students, own assignments, stale facts, im
     try{
       const preparedApplication=await call(0,'POST','/api/requests',{type:'retake',purpose:'Ликвидация задолженности',delivery:'pdf',processingMode:'ai',assignmentId:assignmentIds[0]});
       assert.equal(preparedApplication.statusCode,201);
-      const application=preparedApplication.json().data;assert.equal(application.status,'submitted');assert.ok(application.aiPreparedAt);assert.equal(application.automatedAt,null);assert.equal(application.automationReason,'approval_required');
+      await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+      const application=(await call(0,'GET','/api/requests')).json().data.find((r:{id:string})=>r.id===preparedApplication.json().data.id);assert.equal(application.status,'submitted');assert.ok(application.aiPreparedAt);assert.equal(application.automatedAt,null);assert.equal(application.automationReason,'approval_required');
       assert.equal((await call(0,'GET',`/api/requests/${application.id}/prepared/pdf`)).statusCode,200);
       assert.equal((await call(1,'GET',`/api/requests/${application.id}/prepared/docx`)).statusCode,403);
       assert.equal((await status(application.id,'ready',application.draftId)).statusCode,409);
       globalThis.fetch=async(_url,init)=>{const input=JSON.parse(JSON.parse(String(init?.body)).messages[1].text);input.trustedFields.FULL_NAME='Подменённое имя';return new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:JSON.stringify({fields:input.trustedFields,missing:[]})}}]}}))};
       const bad=await call(0,'POST','/api/requests',{type:'study',purpose:'по месту требования',delivery:'pdf',processingMode:'ai'});
-      assert.equal(bad.statusCode,201);assert.equal(bad.json().data.status,'submitted');assert.equal(bad.json().data.automationReason,'facts_mismatch');assert.equal(bad.json().data.docxAvailable,false);
+      assert.equal(bad.statusCode,201);await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+      const badRow=(await call(0,'GET','/api/requests')).json().data.find((r:{id:string})=>r.id===bad.json().data.id);assert.equal(badRow.status,'submitted');assert.equal(badRow.automationReason,'facts_mismatch');assert.equal(badRow.docxAvailable,false);
     }finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.YANDEX_API_KEY;else process.env.YANDEX_API_KEY=previousKey;if(previousUri===undefined)delete process.env.YANDEX_MODEL_URI;else process.env.YANDEX_MODEL_URI=previousUri}
     // Profile changes invalidate preview even when the request row did not change.
     conversionMode='real';const changed=(await create(1)).json().data;const d=await prepare(changed.id);

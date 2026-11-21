@@ -160,7 +160,9 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       const other=await create({...input,type:'other'});
       assert.equal(other.statusCode,201);assert.equal(other.json().data.processingMode,'staff');
       const ai=await create(input);
-      assert.equal(ai.statusCode,201);const aiRow=ai.json().data;
+      assert.equal(ai.statusCode,201);assert.equal(ai.json().data.status,'submitted');assert.equal(ai.json().data.automationReason,'queued');
+      await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+      const aiRow=(await list(0)).json().data.find((r:{id:string})=>r.id===ai.json().data.id);
       assert.equal(aiRow.processingMode,'ai');assert.equal(aiRow.status,'ready');assert.ok(aiRow.automatedAt);assert.equal(aiRow.verifiedBy,null);
       assert.match(aiRow.aiNote,/проверены сервером/);
       assert.equal((await app.inject({method:'GET',url:`/api/requests/${aiRow.id}/pdf`,headers:{cookie:cookies[0]!}})).statusCode,200);
@@ -168,9 +170,53 @@ test('requests: persistence, validation, ownership, roles, cancellation and revo
       assert.equal((await cancel(aiRow.id,1)).statusCode,403);
       const allStaff=(await app.inject({method:'GET',url:'/api/staff/requests',headers:{cookie:cookies[3]!}})).json().data;
       assert.equal(allStaff.find((r:{id:string})=>r.id===aiRow.id).aiNote,aiRow.aiNote);
+      let enter!:()=>void,release!:()=>void;
+      const entered=new Promise<void>(resolve=>{enter=resolve}),gate=new Promise<void>(resolve=>{release=resolve});
+      globalThis.fetch=async(_url,init)=>{enter();await gate;const fields=JSON.parse(JSON.parse(String(init?.body)).messages[1].text).trustedFields;return new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:JSON.stringify({fields,missing:[]})}}]}}))};
+      const pending=await Promise.race([create(input),new Promise<never>((_,reject)=>setTimeout(()=>reject(Error('POST waited for AI')),2000))]);
+      assert.equal(pending.statusCode,201);assert.equal(pending.json().data.status,'submitted');
+      await entered;
+      try {
+        const staffPending=(await app.inject({method:'GET',url:'/api/staff/requests',headers:{cookie:cookies[3]!}})).json().data;
+        assert.ok(staffPending.some((r:{id:string})=>r.id===pending.json().data.id));
+        assert.equal((await cancel(pending.json().data.id)).statusCode,200);
+      }finally{release()}
+      await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+      const cancelledAi=(await list(0)).json().data.find((r:{id:string})=>r.id===pending.json().data.id);
+      assert.equal(cancelledAi.status,'cancelled');assert.equal(cancelledAi.automatedAt,null);
+      for(const scenario of ['staff_takeover','source_changed'] as const){
+        let enteredJob!:()=>void,releaseJob!:()=>void;
+        const startedJob=new Promise<void>(resolve=>{enteredJob=resolve}),holdJob=new Promise<void>(resolve=>{releaseJob=resolve});
+        globalThis.fetch=async(_url,init)=>{const fields=JSON.parse(JSON.parse(String(init?.body)).messages[1].text).trustedFields;enteredJob();await holdJob;return new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:JSON.stringify({fields,missing:[]})}}]}}))};
+        const accepted=await create(input);assert.equal(accepted.statusCode,201);
+        await startedJob;
+        try{
+          if(scenario==='staff_takeover')assert.equal((await app.inject({method:'PATCH',url:`/api/staff/requests/${accepted.json().data.id}/status`,headers:{...csrf,cookie:cookies[3]!},payload:{status:'in_progress'}})).statusCode,200);
+          else await c.db.update(studentDocumentProfiles).set({enrollmentOrder:'CHANGED-WHILE-AI'}).where(eq(studentDocumentProfiles.studentId,ids[0]!));
+        }finally{releaseJob()}
+        await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+        const finished=(await list(0)).json().data.find((r:{id:string})=>r.id===accepted.json().data.id);
+        assert.equal(finished.automatedAt,null);assert.equal(finished.status,scenario==='staff_takeover'?'in_progress':'submitted');
+        assert.equal(finished.automationReason,scenario==='staff_takeover'?'staff_takeover':'data_changed');
+      }
+      // Persisted queued jobs and expired leases are picked up by a fresh application instance.
+      globalThis.fetch=async(_url,init)=>{const fields=JSON.parse(JSON.parse(String(init?.body)).messages[1].text).trustedFields;return new Response(JSON.stringify({result:{alternatives:[{status:'ALTERNATIVE_STATUS_FINAL',message:{text:JSON.stringify({fields,missing:[]})}}]}}))};
+      const recoveredIds=[randomUUID(),randomUUID()];
+      await c.db.insert(requests).values(recoveredIds.map((id,i)=>({id,studentId:ids[0]!,type:'study',purpose:'Тест восстановления очереди',delivery:'pdf',processingMode:'ai',automationReason:i?'processing':'queued',updatedAt:new Date(Date.now()-180000)})));
+      const restarted=buildApp({logger:false,secureCookies:false,origin:'http://localhost:5173'});
+      try{
+        await restarted.ready();
+        await restarted.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+        await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+        const restored=(await list(0)).json().data;
+        for(const id of recoveredIds){assert.equal(restored.find((r:{id:string})=>r.id===id).status,'ready');assert.equal((await c.db.select().from(notifications).where(eq(notifications.requestId,id))).length,1);}
+      }finally{await restarted.close()}
       globalThis.fetch=async()=>new Response('unavailable',{status:503});
       const count=(await list(0)).json().data.length;
-      const failed=await create(input);assert.equal(failed.statusCode,201);assert.equal(failed.json().data.status,'submitted');assert.equal(failed.json().data.automationReason,'provider_error');
+      const failed=await create(input);assert.equal(failed.statusCode,201);
+      await app.getDecorator<()=>Promise<void>>('waitForRequestAutomation')();
+      const failedRow=(await list(0)).json().data.find((r:{id:string})=>r.id===failed.json().data.id);
+      assert.equal(failedRow.status,'submitted');assert.equal(failedRow.automationReason,'provider_error');
       assert.equal((await list(0)).json().data.length,count+1);
     } finally {
       globalThis.fetch=originalFetch;

@@ -76,6 +76,8 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
     reply.code(status).send(error(status === 429 ? 'RATE_LIMITED' : status === 500 ? 'INTERNAL_ERROR' : 'BAD_REQUEST',
       status === 429 ? 'Слишком много попыток. Попробуйте позже' : status === 500 ? 'Внутренняя ошибка сервера' : 'Проверьте данные запроса'));
   });
+  let waitForRequests=async()=>{};
+  app.decorate('waitForRequestAutomation',()=>waitForRequests());
   app.register(async function routes(app) {
   const authorize = (role: string) => async (req: FastifyRequest, reply: FastifyReply) => {
     const payload = await claims(req.cookies[name]);
@@ -91,7 +93,8 @@ export function buildApp(options: { logger?: boolean; origin?: string; secureCoo
   deadlineRoutes(app, db, authorize('*'), push);
   materialRoutes(app, db, authorize('*'));
   notificationRoutes(app, db, authorize('*'), push);
-  requestRoutes(app, db, authorize('student'), authorize('staff'), push, options.convertDocument);
+  const requestJobs=requestRoutes(app, db, authorize('student'), authorize('staff'), push, options.convertDocument);
+  waitForRequests=requestJobs.waitForIdle;
   scheduleRoutes(app, db, authorize('staff'), authorize('*'), push);
   aiRoutes(app, db, authorize('*'), aiDeps);
   app.get('/health', async () => ({ status: 'ok' }));

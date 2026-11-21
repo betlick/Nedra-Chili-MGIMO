@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ApiError, staffApi, type ApiStaffRequest } from '../lib/api'
 
 interface Staff {
@@ -18,22 +18,26 @@ export function StaffProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const fetching = useRef(false)
   const reload = useCallback(async () => {
+    if (fetching.current) return
+    fetching.current = true
     try {
       setRequests(await staffApi.requests())
       setError(null)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось загрузить заявки')
     } finally {
+      fetching.current = false
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void reload()
-    // очередь живая: обновляем при возвращении на вкладку и раз в минуту
-    const onFocus = () => void reload()
-    const timer = window.setInterval(onFocus, 60_000)
+    // Refresh only the lightweight queue while the staff tab is visible.
+    const onFocus = () => { if (document.visibilityState === 'visible') void reload() }
+    const timer = window.setInterval(onFocus, 10_000)
     window.addEventListener('focus', onFocus)
     return () => {
       window.clearInterval(timer)

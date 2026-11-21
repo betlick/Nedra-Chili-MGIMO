@@ -2,9 +2,9 @@ import { requestNotice } from './smart-notices.js';
 import { AI_REQUEST_TYPES, aiConfigured } from './request-ai.js';
 import { REQUEST_TYPE_IDS } from './request-types.js';
 import { randomUUID } from 'node:crypto';
-import { bodyObject, DomainError, fail, uuid, type DbSession } from './domain.js';
+import { bodyObject, fail, uuid, type DbSession } from './domain.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, getTableColumns } from 'drizzle-orm';
 import type { connectDatabase } from './db.js';
 import { requestPdf } from './request-pdf.js';
 import { notifications, requests, users, groups, teachingAssignments } from './schema.js';
@@ -14,13 +14,16 @@ import { documentData } from './document-data.js';
 import { documentSnapshot, filledDocx, isTemplateType, originalTemplate, sameSnapshot } from './request-document.js';
 import { converterDiagnostics } from './document-converter.js';
 import { requestTemplatePdf } from './request-template-pdf.js';
-import {automationMessages,prepareRequestAutomation,staffFallback} from './request-automation.js';
+import {requestSummaryColumns} from './request-summary.js';
+import {requestWorker} from './request-worker.js';
 
 type Input = { type: string; purpose: string; comment?: string; delivery: string; processingMode?: 'staff' | 'ai'; assignmentId?: string };
 export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connectDatabase>['db'], student: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, staff: (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>, push: PushService, convertDocument = requestTemplatePdf) {
+  const worker=requestWorker(app,db,push,convertDocument);
   const aiWindows = new Map<string, {start:number; count:number}>();
   const publicRow = ({ documentBase64, documentDocxBase64, draftSnapshot, ...row }: typeof requests.$inferSelect) => ({ ...row, docxAvailable: Boolean(documentDocxBase64) && ['ready','issued'].includes(row.status), preparedAvailable: Boolean(row.aiPreparedAt && documentDocxBase64 && documentBase64 && row.type==='retake' && row.delivery==='pdf' && ['submitted','in_progress'].includes(row.status)) });
   const snapshot = documentSnapshot;
+  const {documentBase64:_pdf,documentDocxBase64:_docx,...withoutFiles}=getTableColumns(requests);
   async function checkAssignment(tx: DbSession, studentId: string, assignmentId: string) {
     const [u] = await tx.select({ groupId: users.groupId }).from(users).where(eq(users.id, studentId)).for('share');
     const [a] = await tx.select({ groupId: teachingAssignments.groupId }).from(teachingAssignments).where(eq(teachingAssignments.id, assignmentId)).for('share');
@@ -56,7 +59,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
   });
   app.get('/api/requests', async (req, reply) => {
     const id = await student(req, reply); if (!id) return;
-    return { data: (await db.select().from(requests).where(eq(requests.studentId, id)).orderBy(desc(requests.createdAt), desc(requests.id))).map(publicRow) };
+    return { data: await db.select(requestSummaryColumns).from(requests).where(eq(requests.studentId, id)).orderBy(desc(requests.createdAt), desc(requests.id)) };
   });
   app.post<{ Body: Input }>('/api/requests', {
     schema: { body: { type: 'object', required: ['type', 'purpose', 'delivery'], additionalProperties: false, properties: {
@@ -87,39 +90,20 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     }
     const createdAt=new Date(),requestId=randomUUID();
     const sourceRow={studentId:id,type:req.body.type,assignmentId:req.body.assignmentId??null,purpose:req.body.purpose.trim(),createdAt,aiPurpose:null};
-    let automation=mode==='ai'?await prepareRequestAutomation(db,sourceRow,req.body.comment?.trim()??'',convertDocument,event=>app.log.warn({event:'request_ai_validation',...event},'AI document validation failed')):null;
-    if(mode==='ai'&&!await student(req,reply))return;
     const result = await db.transaction(async tx => {
-      if (req.body.type === 'retake') {
-        try{await checkAssignment(tx,id,req.body.assignmentId!)}catch(error){
-          if(mode==='ai'&&error instanceof DomainError&&error.statusCode===403){automation=staffFallback('data_changed');sourceRow.assignmentId=null;}else throw error;
-        }
-      }
-      if(automation?.snapshot&&automation.source){
-        try{if(!sameSnapshot(automation.source,await snapshot(tx,sourceRow)))automation=staffFallback('data_changed')}
-        catch(error){if(error instanceof DomainError&&error.statusCode===409)automation=staffFallback('data_changed');else throw error}
-      }
-      const prepared=!!automation?.snapshot,automatic=prepared&&req.body.type==='study'&&req.body.delivery==='pdf';
-      const now=new Date();
-      const [row] = await tx.insert(requests).values({id:requestId,...sourceRow,processingMode:mode,
+      if(req.body.type==='retake')await checkAssignment(tx,id,req.body.assignmentId!);
+      const [row]=await tx.insert(requests).values({id:requestId,...sourceRow,processingMode:mode,
         comment:req.body.comment?.trim()??'',delivery:req.body.delivery,
-        aiNote:mode==='ai'?(prepared?(automatic?'Справка заполнена с YandexGPT, реквизиты проверены сервером. Документ подготовлен автоматически.':req.body.type==='retake'?'YandexGPT подготовил заявление. Решение о допуске принимает сотрудник.':'YandexGPT заполнил бланк. Бумажную выдачу подготовит сотрудник.'):automationMessages[automation?.reason??'provider_error']):null,
-        aiPurpose:prepared&&req.body.type==='retake'?automation!.snapshot!.fields!.PURPOSE:null,
-        aiPreparedAt:prepared?now:null,automatedAt:automatic?now:null,
-        automationReason:mode==='ai'?(prepared?(automatic?null:req.body.type==='retake'?'approval_required':'paper_delivery'):automation?.reason??'provider_error'):null,
-        status:automatic?'ready':'submitted',readyAt:automatic?now:null,
-        draftId:prepared?randomUUID():null,draftSnapshot:automation?.snapshot??null,
-        documentBase64:automation?.pdf?.toString('base64')??null,documentDocxBase64:automation?.docx?.toString('base64')??null,
-      }).returning();
+        automationReason:mode==='ai'?'queued':null,
+        aiNote:mode==='ai'?'Заявка принята. Документ подготавливается автоматически.':null,
+      }).returning(requestSummaryColumns);
       pushed.push(...await tx.insert(notifications).values({studentId:id,requestId:row!.id,...requestNotice(row!,null,'submitted')}).returning());
-      if(automatic){
-        const notice=requestNotice(row!,'submitted','ready');
-        pushed.push(...await tx.insert(notifications).values({studentId:id,requestId:row!.id,...notice,body:notice.body+' Справка подготовлена автоматически после проверки реквизитов.'}).returning());
-      }
-      return row;
+      return row!;
     });
     publishPush(push, pushed, app.log);
-    return reply.code(201).send({ data: publicRow(result!) });
+    reply.code(201).send({data:result});
+    if(mode==='ai')worker.wake();
+    return reply;
   });
   app.patch<{ Params: { id: string } }>('/api/requests/:id/cancel', {
     schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } },
@@ -141,9 +125,9 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
   });
   app.get('/api/staff/requests', async (req, reply) => {
     if (!await staff(req, reply)) return;
-    const rows = await db.select({ request: requests, fullName: users.fullName, groupName: groups.name, faculty:users.faculty, program:groups.program, year:groups.year }).from(requests)
+    const rows = await db.select({ request: requestSummaryColumns, fullName: users.fullName, groupName: groups.name, faculty:users.faculty, program:groups.program, year:groups.year }).from(requests)
       .innerJoin(users, eq(users.id, requests.studentId)).leftJoin(groups, eq(groups.id, users.groupId)).orderBy(desc(requests.createdAt));
-    return { data: rows.map(row => ({ ...publicRow(row.request), fullName: row.fullName, groupName: row.groupName, faculty:row.faculty, program:row.program, year:row.year })) };
+    return { data: rows.map(row => ({ ...row.request, fullName: row.fullName, groupName: row.groupName, faculty:row.faculty, program:row.program, year:row.year })) };
   });
   app.patch<{ Params: { id: string }; Body: { status: string; reason?: string; draftId?: string } }>('/api/staff/requests/:id/status', {
     schema: {
@@ -172,7 +156,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
         const [student] = await tx.select({ fullName: users.fullName, groupName: groups.name }).from(users).leftJoin(groups, eq(groups.id, users.groupId)).where(eq(users.id, row.studentId));
         documentBase64 = (await requestPdf({ ...row, ...student!, ...(row.type==='study'?row.draftSnapshot:{}), readyAt: readyAt! })).toString('base64');
       }
-      const [updated] = await tx.update(requests).set({ status: req.body.status, processedBy: staffId, updatedAt: new Date(), readyAt, documentBase64, ...(req.body.status==='rejected'?{rejectionReason:req.body.reason!.trim()}: {}) }).where(eq(requests.id, row.id)).returning();
+      const [updated] = await tx.update(requests).set({ ...(req.body.status==='in_progress'&&['queued','processing'].includes(row.automationReason??'')?{automationReason:'staff_takeover',aiNote:'Заявка принята сотрудником. Автоматическая обработка остановлена.'}:{}), status: req.body.status, processedBy: staffId, updatedAt: new Date(), readyAt, documentBase64, ...(req.body.status==='rejected'?{rejectionReason:req.body.reason!.trim()}: {}) }).where(eq(requests.id, row.id)).returning();
       pushed.push(...await tx.insert(notifications).values({ studentId: row.studentId, requestId: row.id, ...requestNotice(row, row.status, req.body.status, req.body.status === 'rejected' ? req.body.reason?.trim() : undefined) }).returning());
       return { code: 200, data: publicRow(updated!) };
     });
@@ -255,11 +239,11 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     app.get<{Params:{id:string}}>(`/api/requests/:id/prepared/${format}`,async(req,reply)=>{
       const id=await student(req,reply);if(!id)return;
       const file=await db.transaction(async tx=>{
-        const [row]=await tx.select().from(requests).where(eq(requests.id,uuid(req.params.id))).for('share');
+        const [row]=await tx.select({...withoutFiles,file:format==='pdf'?requests.documentBase64:requests.documentDocxBase64}).from(requests).where(eq(requests.id,uuid(req.params.id))).for('share');
         if(!row)fail(404,'Заявка не найдена');if(row.studentId!==id)fail(403,'Нет доступа к заявке');
         if(row.type!=='retake'||row.processingMode!=='ai'||!row.aiPreparedAt||row.delivery!=='pdf'||!['submitted','in_progress'].includes(row.status)||!row.draftSnapshot)fail(409,'Подготовленное заявление недоступно');
         if(!sameSnapshot(row.draftSnapshot,await snapshot(tx,row)))fail(409,'Сведения изменились. Заявление должен проверить сотрудник');
-        const data=format==='pdf'?row.documentBase64:row.documentDocxBase64;
+        const data=row.file;
         if(!data)fail(409,'Файл пока не подготовлен');return Buffer.from(data,'base64');
       });
       return reply.type(format==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -269,7 +253,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
   for (const isStaff of [false, true]) {
     app.get<{Params:{id:string}}>(isStaff ? '/api/staff/requests/:id/docx' : '/api/requests/:id/docx', async(req,reply)=>{
       const id=await (isStaff?staff:student)(req,reply);if(!id)return;
-      const [row]=await db.select().from(requests).where(eq(requests.id,uuid(req.params.id)));
+      const [row]=await db.select({studentId:requests.studentId,status:requests.status,delivery:requests.delivery,id:requests.id,documentDocxBase64:requests.documentDocxBase64}).from(requests).where(eq(requests.id,uuid(req.params.id)));
       if(!row)fail(404,'Заявка не найдена');
       if(!isStaff&&row.studentId!==id)fail(403,'Нет доступа к заявке');
       if(!['ready','issued'].includes(row.status)||!row.documentDocxBase64||(!isStaff&&row.delivery!=='pdf'))fail(409,'Документ пока недоступен для скачивания');
@@ -282,7 +266,7 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
       schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } },
     }, async (req, reply) => {
       const id = await (isStaff ? staff : student)(req, reply); if (!id) return;
-      const [row] = await db.select().from(requests).where(eq(requests.id, req.params.id));
+      const [row] = await db.select({studentId:requests.studentId,status:requests.status,delivery:requests.delivery,id:requests.id,documentBase64:requests.documentBase64}).from(requests).where(eq(requests.id, req.params.id));
       if (!row) return reply.code(404).send(failure('NOT_FOUND', 'Заявка не найдена'));
       if (!isStaff && row.studentId !== id) return reply.code(403).send(failure('FORBIDDEN', 'Нет доступа к заявке'));
       if (!['ready', 'issued'].includes(row.status) || !row.documentBase64 || (!isStaff && row.delivery !== 'pdf')) return reply.code(409).send(failure('CONFLICT', 'Документ пока недоступен для скачивания'));
@@ -290,4 +274,5 @@ export function requestRoutes(app: FastifyInstance, db: ReturnType<typeof connec
     });
   }
 
+  return worker;
 }

@@ -106,6 +106,11 @@ export function StaffTasksPage() {
         </div>
       </div>
 
+      {status === 'active' && requests.some(r => r.status === 'ready' && r.automatedAt) && <p className="small muted">
+        Автоматически подготовленные справки находятся в разделе «Готовы».{' '}
+        <button type="button" className="link-btn" onClick={() => {setStatus('ready');setFilter('all')}}>Показать готовые</button>
+      </p>}
+
       {error && (
         <p className="form-error" role="alert">
           <Icon name="alert" size={16} /> {error} <button type="button" className="link-btn" onClick={() => void reload()}>Повторить</button>

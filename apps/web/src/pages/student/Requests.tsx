@@ -43,6 +43,13 @@ export function RequestsPage() {
   }
 
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const download = async (path: string, name: string) => {
+    setDownloading(path)
+    try { await downloadFile(path, name) }
+    catch (e) { toast(e instanceof Error ? e.message : 'Не удалось скачать файл') }
+    finally { setDownloading(null) }
+  }
   // Переход из уведомления: /student/requests?id=… выделяет заявку и прокручивает к ней.
   const [params] = useSearchParams()
   const targetId = params.get('id')
@@ -247,7 +254,8 @@ export function RequestsPage() {
                 <p className="small muted">
                   {r.purpose} · подана {r.createdLabel} · {r.delivery === 'pdf' ? 'PDF' : 'в деканате'}
                 </p>
-                {r.aiNote && <details><summary>Подсказка ИИ · требует проверки</summary><p style={{whiteSpace:'pre-wrap'}}>{r.aiNote}</p></details>}
+                {r.status === 'submitted' && ['queued','processing'].includes(r.automationReason ?? '') && <p className="small" role="status">Заявка принята. Подготавливаем документ — результат появится здесь автоматически.</p>}
+                {r.aiNote && !['queued','processing'].includes(r.automationReason ?? '') && <details><summary>Обработка заявки</summary><p style={{whiteSpace:'pre-wrap'}}>{r.aiNote}</p></details>}
                   {!['cancelled','rejected'].includes(r.status) && <Stages stages={REQUEST_STAGES} current={r.stage} />}
                 {r.rejectionReason && <p role="alert">Причина отказа: {r.rejectionReason}</p>}
                 {r.comment && <blockquote className="req__comment">«{r.comment}»</blockquote>}
@@ -255,14 +263,14 @@ export function RequestsPage() {
                 {r.preparedAvailable && <p className="small muted">Заявление подготовлено. Оно ожидает решения сотрудника и не подтверждает допуск к пересдаче.</p>}
                 <div className="req__actions">
                   {r.preparedAvailable && <>
-                    <Button variant="surface" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/prepared/pdf`, 'application-awaiting-decision.pdf').catch(e => toast(e.message))}>Подготовленное заявление PDF</Button>
-                    <Button variant="surface" onClick={() => void downloadFile(`/api/requests/${r.id}/prepared/docx`, 'application-awaiting-decision.docx').catch(e => toast(e.message))}>DOCX заявления</Button>
+                    <Button variant="surface" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/prepared/pdf`, 'application-awaiting-decision.pdf')}>{downloading === `/api/requests/${r.id}/prepared/pdf` ? 'Скачиваем…' : 'Подготовленное заявление PDF'}</Button>
+                    <Button variant="surface" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/prepared/docx`, 'application-awaiting-decision.docx')}>{downloading === `/api/requests/${r.id}/prepared/docx` ? 'Скачиваем…' : 'DOCX заявления'}</Button>
                   </>}
                   {['ready','issued'].includes(r.status) && r.delivery === 'pdf' && (<>
-                    <Button variant="primary" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/pdf`, `request-${r.id}.pdf`).catch(e => toast(e.message))}>
-                      Скачать PDF
+                    <Button variant="primary" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/pdf`, `request-${r.id}.pdf`)}>
+                      {downloading === `/api/requests/${r.id}/pdf` ? 'Скачиваем PDF…' : 'Скачать PDF'}
                     </Button>
-                    {r.docxAvailable && <Button variant="surface" icon="download" onClick={() => void downloadFile(`/api/requests/${r.id}/docx`, `request-${r.id}.docx`).catch(e => toast(e.message))}>Скачать DOCX</Button>}
+                    {r.docxAvailable && <Button variant="surface" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/docx`, `request-${r.id}.docx`)}>{downloading === `/api/requests/${r.id}/docx` ? 'Скачиваем…' : 'Скачать DOCX'}</Button>}
                   </>)}
                   {['submitted','in_progress'].includes(r.status) && <Button
                     disabled={busy}
