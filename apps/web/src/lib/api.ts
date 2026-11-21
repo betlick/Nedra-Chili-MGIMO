@@ -177,6 +177,18 @@ export const dataApi = {
   deleteMaterial:(id:string)=>request(`/api/materials/${id}`,'DELETE'),
 }
 export async function downloadFile(path:string,fileName:string,body?:object) {
+  // Saved files go straight to the browser download manager: no full-file Blob buffer.
+  // Cookies and every server-side access check still apply to the GET request.
+  if (!body) {
+    const a = document.createElement('a')
+    a.href = path
+    a.download = fileName
+    a.hidden = true
+    document.body.append(a)
+    a.click()
+    a.remove()
+    return
+  }
   const response=await fetch(path,{credentials:'same-origin',method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-CSRF-Protection':'1'}:undefined,body:body?JSON.stringify(body):undefined})
   if(!response.ok){const payload=await response.json().catch(()=>null);throw new ApiError(response.status,payload?.error?.message??'Не удалось скачать файл')}
   const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
