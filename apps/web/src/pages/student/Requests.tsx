@@ -1,22 +1,20 @@
 import { dataApi, downloadFile, type ApiAssignment } from '../../lib/api'
-import { STATUS_LABEL } from '../../lib/staff'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useIndicator } from '../../lib/useIndicator'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSmoothHeight } from '../../lib/useSmoothHeight'
 import { useData } from '../../context/data'
 import { useToast } from '../../context/toast'
-import { REQUEST_STAGES, REQUEST_TYPES } from '../../data/mock'
+import { REQUEST_TYPES } from '../../data/mock'
 import type { Delivery, RequestType } from '../../types'
-import { Badge, Button, Disclaimer, IconButton, PageHeader, Segmented, Stages, ThemeButton } from '../../components/ui'
+import { Button, Disclaimer, IconButton, PageHeader, Segmented, ThemeButton } from '../../components/ui'
 import { RequestTypePicker } from '../../components/RequestTypePicker'
 import { useSearchParams } from 'react-router-dom'
 import { InquiryThreads } from '../../components/InquiryThreads'
+import { MyRequests } from '../../components/MyRequests'
 
-type Filter = 'all' | 'work' | 'ready'
 type Target = 'dean' | 'teacher'
 
 export function RequestsPage() {
-  const { requests, addRequest, cancelRequest, unreadCount, reload, inquiries } = useData()
+  const { requests, addRequest, unreadCount, reload, inquiries } = useData()
   const toast = useToast()
   const [aiOptions,setAiOptions] = useState<{aiEnabled:boolean;aiTypes:RequestType[]}>({aiEnabled:false,aiTypes:[]})
   useEffect(()=>{let live=true;dataApi.requestOptions().then(v=>{if(live)setAiOptions(v)}).catch(()=>{});return()=>{live=false}},[])
@@ -24,7 +22,8 @@ export function RequestsPage() {
   const [purpose, setPurpose] = useState('')
   const [comment, setComment] = useState('')
   const [delivery, setDelivery] = useState<Delivery>('pdf')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [expanded, setExpanded] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
   const [error, setError] = useState('')
   // /student/requests?to=teacher открывает вкладку обращений (по этой ссылке приходят из уведомлений и со старой страницы)
   const [target, setTarget] = useState<Target>(() => (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('to') === 'teacher' ? 'teacher' : 'dean'))
@@ -43,30 +42,24 @@ export function RequestsPage() {
   }
 
   const [busy, setBusy] = useState(false)
-  const [downloading, setDownloading] = useState<string | null>(null)
-  const download = async (path: string, name: string) => {
-    setDownloading(path)
-    try { await downloadFile(path, name) }
-    catch (e) { toast(e instanceof Error ? e.message : 'Не удалось скачать файл') }
-    finally { setDownloading(null) }
-  }
   // Переход из уведомления: /student/requests?id=… выделяет заявку и прокручивает к ней.
   const [params] = useSearchParams()
   const targetId = params.get('id')
   const toParam = params.get('to')
   useEffect(() => { if (toParam === 'teacher') setTarget('teacher') }, [toParam])
-  const scrolledTo = useRef<string | null>(null)
-  useEffect(() => {
-    if (!targetId || scrolledTo.current === targetId || !requests.some((r) => r.id === targetId)) return
-    scrolledTo.current = targetId
-    setFilter('all')
+  const expand = useCallback(() => setExpanded(true), [])
+  const collapse = useCallback(() => setExpanded(false), [])
+  // «Новая заявка»: вернуться к форме обычного вида и поставить курсор в первое поле
+  const startNew = () => {
+    setExpanded(false)
+    setTarget('dean')
     requestAnimationFrame(() => {
-      const el = document.getElementById(`req-${targetId}`)
-      if (!el) return
-      el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
-      el.focus({ preventScroll: true })
+      const f = formRef.current
+      if (!f) return
+      f.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+      f.querySelector<HTMLElement>('input, textarea, select, button[aria-pressed], [role=radio]')?.focus({ preventScroll: true })
     })
-  }, [targetId, requests])
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -103,13 +96,11 @@ export function RequestsPage() {
     toast(`Заявка «${REQUEST_TYPES[type]}» отправлена`)
   }
 
-  const chipsInd = useIndicator<HTMLDivElement>(filter)
   const swapRef = useSmoothHeight(target)
-  const shown = requests.filter((r) => (filter === 'all' ? true : filter === 'work' ? ['submitted','in_progress'].includes(r.status) : ['ready','issued'].includes(r.status)))
 
   return (
     <>
-      <PageHeader
+      {!expanded && <PageHeader
         eyebrow="Подача и история заявок"
         title="Заявки и справки"
         actions={
@@ -118,9 +109,9 @@ export function RequestsPage() {
             <IconButton icon="bell" label="Уведомления" to="/student/notifications" dot={unreadCount > 0} />
           </>
         }
-      />
-      <div className="grid-half grid-half--req">
-        <form className="card" onSubmit={submit} noValidate>
+      />}
+      <div className={`grid-half grid-half--req ${expanded ? 'grid-half--solo' : ''}`}>
+        <form ref={formRef} className="card" onSubmit={submit} noValidate hidden={expanded}>
           <h2 key={target} className="card__title card__title--lg title-swap">{target === 'dean' ? 'Новая заявка' : 'Обращение к преподавателю'}</h2>
           <Segmented
             soft
@@ -215,81 +206,16 @@ export function RequestsPage() {
           </Button>
         </form>
 
-        <section className="card">
-          {target === 'teacher' ? (
-            <>
-              <div className="card__head card__head--wrap">
-                <h2 className="card__title card__title--lg">Мои обращения{inquiries.length > 0 && <span className="card__count"> · {inquiries.length}</span>}</h2>
-              </div>
-              <InquiryThreads teachers={teachers} />
-            </>
-          ) : (
-            <>
-          <div className="card__head card__head--wrap">
-            <h2 className="card__title card__title--lg">Мои заявки</h2>
-            <div ref={chipsInd.box} className="chips" role="radiogroup" aria-label="Фильтр">
-              <span ref={chipsInd.ind} className="chips__ind" aria-hidden="true" />
-              {(
-                [
-                  ['all', `Все · ${requests.length}`],
-                  ['work', 'В работе'],
-                  ['ready', 'Готовы'],
-                ] as [Filter, string][]
-              ).map(([v, l]) => (
-                <button key={v} type="button" role="radio" aria-checked={filter === v} className={`chip ${filter === v ? 'is-active' : ''}`} onClick={() => setFilter(v)}>
-                  {l}
-                </button>
-              ))}
+        {target === 'teacher' ? (
+          <section className="card">
+            <div className="card__head card__head--wrap">
+              <h2 className="card__title card__title--lg">Мои обращения{inquiries.length > 0 && <span className="card__count"> · {inquiries.length}</span>}</h2>
             </div>
-          </div>
-
-          {shown.length === 0 && <p className="muted">Здесь пока пусто.</p>}
-          <div className="stack">
-            {shown.map((r) => (
-              <article key={r.id} id={`req-${r.id}`} className={`req ${r.id === targetId ? 'is-target' : ''}`} tabIndex={r.id === targetId ? -1 : undefined} aria-current={r.id === targetId ? 'true' : undefined}>
-                <div className="req__head">
-                  <h3>{REQUEST_TYPES[r.type]}</h3>
-                  <Badge tone={r.stage >= 2 ? 'ok' : 'neutral'}>{STATUS_LABEL[r.status]}</Badge>
-                </div>
-                <p className="small muted">
-                  {r.purpose} · подана {r.createdLabel} · {r.delivery === 'pdf' ? 'PDF' : 'в деканате'}
-                </p>
-                {r.status === 'submitted' && ['queued','processing'].includes(r.automationReason ?? '') && <p className="small" role="status">Заявка принята. Подготавливаем документ — результат появится здесь автоматически.</p>}
-                {r.aiNote && !['queued','processing'].includes(r.automationReason ?? '') && <details><summary>Обработка заявки</summary><p style={{whiteSpace:'pre-wrap'}}>{r.aiNote}</p></details>}
-                  {!['cancelled','rejected'].includes(r.status) && <Stages stages={REQUEST_STAGES} current={r.stage} />}
-                {r.rejectionReason && <p role="alert">Причина отказа: {r.rejectionReason}</p>}
-                {r.comment && <blockquote className="req__comment">«{r.comment}»</blockquote>}
-                {r.automatedAt && <p className="small">Справка подготовлена автоматически. Реквизиты сверены с учебным профилем.</p>}
-                {r.preparedAvailable && <p className="small muted">Заявление подготовлено. Оно ожидает решения сотрудника и не подтверждает допуск к пересдаче.</p>}
-                <div className="req__actions">
-                  {r.preparedAvailable && <>
-                    <Button variant="surface" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/prepared/pdf`, 'application-awaiting-decision.pdf')}>{downloading === `/api/requests/${r.id}/prepared/pdf` ? 'Скачиваем…' : 'Подготовленное заявление PDF'}</Button>
-                    <Button variant="surface" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/prepared/docx`, 'application-awaiting-decision.docx')}>{downloading === `/api/requests/${r.id}/prepared/docx` ? 'Скачиваем…' : 'DOCX заявления'}</Button>
-                  </>}
-                  {['ready','issued'].includes(r.status) && r.delivery === 'pdf' && (<>
-                    <Button variant="primary" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/pdf`, `request-${r.id}.pdf`)}>
-                      {downloading === `/api/requests/${r.id}/pdf` ? 'Скачиваем PDF…' : 'Скачать PDF'}
-                    </Button>
-                    {r.docxAvailable && <Button variant="surface" icon="download" disabled={!!downloading} onClick={() => void download(`/api/requests/${r.id}/docx`, `request-${r.id}.docx`)}>{downloading === `/api/requests/${r.id}/docx` ? 'Скачиваем…' : 'Скачать DOCX'}</Button>}
-                  </>)}
-                  {['submitted','in_progress'].includes(r.status) && <Button
-                    disabled={busy}
-                    variant="danger"
-                    onClick={async () => {
-                      setBusy(true)
-                      if (await cancelRequest(r.id)) toast('Заявка отменена')
-                      setBusy(false)
-                    }}
-                  >
-                    Отменить заявку
-                  </Button>}
-                </div>
-              </article>
-            ))}
-          </div>
-            </>
-          )}
-        </section>
+            <InquiryThreads teachers={teachers} />
+          </section>
+        ) : (
+          <MyRequests requests={requests} expanded={expanded} onExpand={expand} onCollapse={collapse} onNew={startNew} targetId={targetId} />
+        )}
       </div>
       <Disclaimer />
     </>

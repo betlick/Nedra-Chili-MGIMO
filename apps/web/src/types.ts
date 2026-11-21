@@ -56,6 +56,7 @@ export interface StudentRequest {
   purpose: string
   comment: string
   delivery: Delivery
+  createdAt?: string
   createdLabel: string
   status: 'submitted'|'in_progress'|'ready'|'issued'|'cancelled'|'rejected'
   rejectionReason?: string | null

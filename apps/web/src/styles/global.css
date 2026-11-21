@@ -8169,3 +8169,311 @@ tbody tr:last-child .tt__cell.is-today:not(.is-last) {
     justify-self: stretch;
   }
 }
+
+/* ═════════ «Мои заявки»: последние три, остальные — на всё окно ═════════ */
+[hidden] {
+  display: none !important;
+}
+.grid-half--solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.myreq {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.myreq__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.myreq__head h2 {
+  margin: 0;
+  margin-inline-end: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.myreq__count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.myreq__tools {
+  display: grid;
+  gap: 12px;
+}
+.myreq__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding-inline: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--input-bg);
+  color: var(--ink-3);
+}
+.myreq__search:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.myreq__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+}
+.myreq__search kbd {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 22px;
+  text-align: center;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.chip__n {
+  margin-inline-start: 8px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+.myreq__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.myreq__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  align-items: start;
+  padding: 18px 0 18px 14px;
+  border-top: 1px solid var(--line);
+}
+.myreq__row:first-child {
+  border-top: 0;
+}
+.myreq__row.is-active::before {
+  content: '';
+  position: absolute;
+  inset-block: 14px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--hl);
+}
+.myreq__row.is-target {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+.myreq__tile {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--hl);
+  color: var(--on-hl);
+}
+.myreq__tile.is-done {
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+}
+.myreq__tile.is-off {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.myreq__main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.myreq__main h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+.myreq__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.myreq__chev {
+  transition: rotate 0.2s ease;
+  color: var(--ink-3);
+}
+.myreq__title[aria-expanded='true'] .myreq__chev {
+  rotate: 180deg;
+}
+.myreq__meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.myreq__meta span + span::before {
+  content: '·';
+  margin-inline-end: 8px;
+}
+.myreq__prog {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(360px, 100%);
+}
+.myreq__bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.myreq__bar i {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--track);
+}
+.myreq__bar i.is-on {
+  background: var(--progress);
+}
+.myreq__state {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.myreq__aside {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+.myreq__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.myreq__link--danger {
+  color: var(--danger-ink);
+}
+.myreq__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.myreq__details {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.myreq__details dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0;
+}
+.myreq__details dt {
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.myreq__details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.myreq__details p {
+  margin: 0;
+}
+.myreq__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.myreq__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.myreq__foot p {
+  margin: 0;
+}
+.myreq__empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+.myreq__empty p {
+  margin: 0;
+}
+.myreq--full .myreq__list {
+  max-width: 980px;
+}
+.myreq button:focus-visible,
+.myreq__title:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .myreq__chev {
+    transition: none;
+  }
+}
+@media (max-width: 640px) {
+  .myreq__row {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding-inline-start: 10px;
+  }
+  .myreq__tile {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .myreq__aside {
+    grid-column: 2;
+    justify-items: start;
+    grid-auto-flow: column;
+    align-items: center;
+    justify-content: start;
+    gap: 12px;
+  }
+  .myreq__details {
+    grid-column: 1 / -1;
+  }
+  .myreq__head {
+    flex-wrap: wrap;
+  }
+}

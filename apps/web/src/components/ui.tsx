@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { Link } from 'react-router-dom'
 import emblem from '../assets/emblem.png'
 import { Icon, type IconName } from './Icon'
@@ -26,6 +26,7 @@ interface BtnProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: IconName
   block?: boolean
   size?: 'sm' | 'md' | 'lg'
+  ref?: Ref<HTMLButtonElement>
 }
 export function Button({ variant = 'accent', icon, iconRight, block, size = 'md', className = '', children, ...rest }: BtnProps) {
   return (
